@@ -1,0 +1,6 @@
+// Production: set these to your deployed backend, e.g. https://api.primenear.in/api/admin
+export const environment = {
+  production: true,
+  apiUrl: '/api/admin',
+  fileBaseUrl: '',
+};

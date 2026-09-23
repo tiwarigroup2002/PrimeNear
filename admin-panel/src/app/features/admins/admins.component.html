@@ -1,0 +1,117 @@
+<app-page-header title="Admin users" icon="bi-person-badge" subtitle="Who can access this panel and what they can do">
+  <button class="btn btn-sm btn-primary" (click)="openForm()"><i class="bi bi-person-plus me-1"></i>Add admin</button>
+</app-page-header>
+
+<div class="card mb-3">
+  <div class="filter-bar">
+    <input class="form-control form-control-sm search" placeholder="Search name, email, mobile" [(ngModel)]="list.filters['search']" (keyup.enter)="list.apply()" />
+    <select class="form-select form-select-sm" [(ngModel)]="list.filters['role']" (change)="list.apply()"><option value="">All roles</option>@for (r of roles; track r) { <option [value]="r">{{ r }}</option> }</select>
+    <select class="form-select form-select-sm" [(ngModel)]="list.filters['status']" (change)="list.apply()"><option value="">Any status</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>Admin</th><th>Role</th><th>2FA</th><th>Status</th><th>Last login</th><th>Created</th><th class="text-end">Actions</th></tr></thead>
+      <tbody>
+        @for (a of list.items(); track a._id) {
+          <tr>
+            <td><div class="cell-title">{{ a.fullName }} @if (a._id === auth.admin()?.id) { <span class="badge text-bg-light border">You</span> }</div><div class="cell-sub">{{ a.email }} @if (a.mobileNumber) { · {{ a.mobileNumber }} }</div></td>
+            <td><app-status-badge [status]="a.role" />@if (a.permissions?.length) { <div class="cell-sub">+{{ a.permissions.length }} extra permission(s)</div> }</td>
+            <td>@if (a.twoFactorEnabled) { <i class="bi bi-shield-check text-success" title="Enabled"></i> } @else { <i class="bi bi-shield text-muted" title="Not enabled"></i> }</td>
+            <td><app-status-badge [status]="a.isActive ? 'Active' : 'Inactive'" /></td>
+            <td class="small">{{ a.lastLogin ? (a.lastLogin | timeAgo) : 'Never' }}</td>
+            <td class="small">{{ a.createdAt | date: 'd MMM y' }}<div class="cell-sub">{{ a.createdBy?.fullName }}</div></td>
+            <td class="text-end text-nowrap">
+              @if (a._id !== auth.admin()?.id) {
+                <button class="btn btn-sm btn-light" title="Edit" (click)="openForm(a)"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn-sm btn-light" title="Reset password" (click)="openReset(a)"><i class="bi bi-key"></i></button>
+                <button class="btn btn-sm btn-light" [title]="a.isActive ? 'Deactivate' : 'Activate'" (click)="toggleActive(a)"><i class="bi" [class.bi-toggle-on]="a.isActive" [class.text-success]="a.isActive" [class.bi-toggle-off]="!a.isActive"></i></button>
+                <button class="btn btn-sm btn-light text-danger" title="Delete" (click)="remove(a)"><i class="bi bi-trash"></i></button>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  <app-state [loading]="list.loading()" [error]="list.error()" [empty]="!list.loading() && !list.items().length" />
+  <app-pagination [page]="list.page" [pages]="list.pages()" [total]="list.total()" [limit]="list.limit" (pageChange)="list.goTo($event)" (limitChange)="list.setLimit($event)" />
+</div>
+
+@if (catalogue(); as c) {
+  <div class="card">
+    <div class="card-header"><span class="card-title">Role permissions</span></div>
+    <div class="table-responsive">
+      <table class="table table-sm">
+        <thead><tr><th>Permission</th>@for (r of roles; track r) { <th class="text-center">{{ r }}</th> }</tr></thead>
+        <tbody>
+          @for (p of permissionGroups(); track p[0]) {
+            @for (item of p[1]; track item[0]) {
+              <tr><td class="small">{{ item[1] }} <code class="ref text-muted">{{ item[0] }}</code></td>
+                @for (r of roles; track r) { <td class="text-center">@if (roleHas(r, item[0])) { <i class="bi bi-check-lg text-success"></i> } @else { <span class="text-muted">–</span> }</td> }
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+}
+
+<app-modal [open]="formOpen()" [title]="form._id ? 'Edit admin' : 'Add admin'" size="lg" (closed)="formOpen.set(false)">
+  <div class="row g-3">
+    <div class="col-md-6"><label class="form-label required">Full name</label><input class="form-control" [(ngModel)]="form.fullName" /></div>
+    <div class="col-md-6"><label class="form-label required">Email</label><input type="email" class="form-control" [(ngModel)]="form.email" [disabled]="!!form._id" /></div>
+    @if (!form._id) {
+      <div class="col-md-6">
+        <label class="form-label required">Temporary password</label>
+        <div class="input-group">
+          <input [type]="showPassword ? 'text' : 'password'" class="form-control" [(ngModel)]="form.password" autocomplete="new-password" />
+          <button class="btn btn-outline-secondary" type="button" (click)="showPassword = !showPassword"><i class="bi" [class.bi-eye]="!showPassword" [class.bi-eye-slash]="showPassword"></i></button>
+          <button class="btn btn-outline-secondary" type="button" (click)="form.password = generatePassword(); showPassword = true" title="Generate">Generate</button>
+        </div>
+        <app-password-strength [value]="form.password" />
+      </div>
+    }
+    <div class="col-md-6"><label class="form-label">Mobile</label><input class="form-control" [(ngModel)]="form.mobileNumber" maxlength="10" /></div>
+    <div class="col-md-6">
+      <label class="form-label required">Role</label>
+      <select class="form-select" [(ngModel)]="form.role">@for (r of roles; track r) { <option [value]="r">{{ r }}</option> }</select>
+    </div>
+    <div class="col-md-6 d-flex align-items-end"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="aa" [(ngModel)]="form.isActive" /><label class="form-check-label" for="aa">Active</label></div></div>
+    <div class="col-12">
+      <label class="form-label">Permissions</label>
+      @if (form.role === 'SuperAdmin') {
+        <div class="alert alert-warning small py-2">Super Admins have every permission, including managing other admins.</div>
+      } @else {
+        <div class="form-text mb-2">Greyed permissions come with the role. Tick extra ones to grant them to this admin only.</div>
+        @for (g of permissionGroups(); track g[0]) {
+          <div class="mb-2"><div class="small fw-semibold text-uppercase text-muted">{{ g[0] }}</div>
+            <div class="perm-grid">
+              @for (p of g[1]; track p[0]) {
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" [id]="'p' + p[0]" [checked]="roleHas(form.role, p[0]) || form.permissions.includes(p[0])" [disabled]="roleHas(form.role, p[0])" (change)="togglePerm(p[0], $any($event.target).checked)" />
+                  <label class="form-check-label small" [for]="'p' + p[0]">{{ p[1] }}</label>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      }
+    </div>
+  </div>
+  <div modal-footer class="modal-footer">
+    <button class="btn btn-light" (click)="formOpen.set(false)">Cancel</button>
+    <button class="btn btn-primary" (click)="save()" [disabled]="saving()">{{ form._id ? 'Save changes' : 'Create admin' }}</button>
+  </div>
+</app-modal>
+
+<app-modal [open]="resetOpen()" [title]="'Reset password – ' + resetTarget?.fullName" (closed)="resetOpen.set(false)">
+  <label class="form-label">New password</label>
+  <div class="input-group"><input type="text" class="form-control" [(ngModel)]="resetPassword" /><button class="btn btn-outline-secondary" (click)="resetPassword = generatePassword()">Generate</button></div>
+  <app-password-strength [value]="resetPassword" />
+  <div class="form-text">The admin is logged out everywhere and must use this password next time.</div>
+  <div modal-footer class="modal-footer">
+    <button class="btn btn-light" (click)="resetOpen.set(false)">Cancel</button>
+    <button class="btn btn-primary" (click)="doReset()">Reset password</button>
+  </div>
+</app-modal>

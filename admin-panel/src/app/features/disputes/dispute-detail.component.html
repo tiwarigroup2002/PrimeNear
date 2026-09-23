@@ -1,0 +1,136 @@
+<app-page-header [title]="d() ? d().ticketId : 'Dispute'" back="/disputes" backLabel="Disputes">
+  @if (d(); as d) {
+    <ng-container *appCan="'disputes.manage'">
+      @if (d.status === 'Open' || d.status === 'InProgress') { <button class="btn btn-sm btn-success" (click)="openResolve()"><i class="bi bi-check2-circle me-1"></i>Resolve</button> }
+      @if (d.status === 'Resolved') { <button class="btn btn-sm btn-outline-secondary" (click)="close()">Close ticket</button> }
+      @if (d.status === 'Resolved' || d.status === 'Closed') { <button class="btn btn-sm btn-outline-warning" (click)="reopen()">Reopen</button> }
+    </ng-container>
+  }
+</app-page-header>
+<app-state [loading]="loading()" [error]="error()" />
+
+@if (d(); as d) {
+  <div class="row g-3">
+    <div class="col-lg-8">
+      <div class="card mb-3">
+        <div class="card-body">
+          <div class="d-flex flex-wrap gap-2 mb-2"><app-status-badge [status]="d.status" /><app-status-badge [status]="d.priority" /><span class="badge text-bg-light border">{{ d.category }}</span></div>
+          <h2 class="h5">{{ d.title }}</h2>
+          <p class="text-pre mb-2">{{ d.description }}</p>
+          <div class="small text-muted">Raised {{ d.createdAt | date: 'd MMM y, h:mm a' }} ({{ d.createdAt | timeAgo }})</div>
+          @if (d.images?.length) {
+            <div class="d-flex gap-2 mt-3 flex-wrap">@for (i of d.images; track $index) { <a [href]="i" target="_blank"><img [src]="i" class="thumb thumb-lg" alt="attachment" /></a> }</div>
+          }
+          @if (d.status === 'Resolved' || d.status === 'Closed') {
+            <div class="alert alert-success mt-3 mb-0 small">
+              <strong>Resolution:</strong> {{ d.resolution }}
+              @if (d.refundAmount) { <div>Refund: {{ d.refundAmount | inr }} to {{ d.refundTo }} @if (d.refundId) { ({{ d.refundId.refundId }} · {{ d.refundId.status }}) }</div> }
+              @if (d.resolutionNotes) { <div class="text-muted">{{ d.resolutionNotes }}</div> }
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span class="card-title">Conversation</span></div>
+        <div class="card-body">
+          @for (c of d.comments; track c._id) {
+            <div class="d-flex gap-2 mb-3">
+              <span class="avatar avatar-initials flex-shrink-0" style="width: 32px; height: 32px">{{ (c.byName || c.byType || '?').slice(0, 1) }}</span>
+              <div class="flex-grow-1 bg-body-tertiary rounded p-2">
+                <div class="small"><strong>{{ c.byName || c.byType }}</strong> <span class="badge text-bg-light border">{{ c.byType }}</span> <span class="text-muted">{{ c.at | date: 'd MMM, h:mm a' }}</span></div>
+                @if (c.text) { <div class="text-pre small mt-1">{{ c.text }}</div> }
+                @if (c.attachments?.length) { <div class="d-flex gap-2 mt-2">@for (a of c.attachments; track $index) { <a [href]="a" target="_blank"><img [src]="a" class="thumb" alt="" /></a> }</div> }
+              </div>
+            </div>
+          } @empty { <div class="text-muted small text-center py-3">No comments yet</div> }
+          <ng-container *appCan="'disputes.manage'">
+            @if (d.status !== 'Closed') {
+              <textarea class="form-control mb-2" rows="3" placeholder="Write a comment / internal note..." [(ngModel)]="comment"></textarea>
+              <div class="d-flex justify-content-between align-items-center gap-2">
+                <input type="file" class="form-control form-control-sm w-auto" accept="image/*" multiple (change)="onFiles($event)" />
+                <button class="btn btn-primary btn-sm" (click)="post()" [disabled]="posting()"><i class="bi bi-send me-1"></i>Post</button>
+              </div>
+            }
+          </ng-container>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card mb-3">
+        <div class="card-header"><span class="card-title">Handling</span></div>
+        <div class="card-body">
+          <label class="form-label small">Assigned to</label>
+          <select class="form-select form-select-sm mb-3" [ngModel]="d.assignedToAdmin?._id || ''" (ngModelChange)="assign($event)" [disabled]="!auth.can('disputes.manage') || d.status === 'Closed'">
+            <option value="">Unassigned</option>
+            @if (d.assignedToAdmin && !isKnownAdmin(d.assignedToAdmin._id)) { <option [value]="d.assignedToAdmin._id">{{ d.assignedToAdmin.fullName }}</option> }
+            @for (a of admins(); track a._id) { <option [value]="a._id">{{ a.fullName }}</option> }
+          </select>
+          <label class="form-label small">Priority</label>
+          <select class="form-select form-select-sm mb-3" [ngModel]="d.priority" (ngModelChange)="update('priority', $event)" [disabled]="!auth.can('disputes.manage') || d.status === 'Closed'">
+            @for (p of priorities; track p) { <option>{{ p }}</option> }
+          </select>
+          <label class="form-label small">Category</label>
+          <select class="form-select form-select-sm" [ngModel]="d.category" (ngModelChange)="update('category', $event)" [disabled]="!auth.can('disputes.manage') || d.status === 'Closed'">
+            @for (c of categories; track c) { <option>{{ c }}</option> }
+          </select>
+        </div>
+      </div>
+      <div class="card mb-3">
+        <div class="card-header"><span class="card-title">Parties</span></div>
+        <div class="card-body small">
+          <div class="mb-2"><div class="text-muted">Raised by ({{ d.reportedBy }})</div>
+            @if (d.reportedBy === 'Seller') { <a [routerLink]="['/sellers', d.reportedById?._id]">{{ d.reportedById?.shopName }}</a> }
+            @else if (d.reportedBy === 'User') { <a [routerLink]="['/users', d.reportedById?._id]">{{ d.reportedById?.name || d.reportedById?.mobileNumber }}</a> }
+            @else { Admin }
+            @if (d.reportedById?.mobileNumber) { <div>{{ d.reportedById.mobileNumber }}</div> }
+          </div>
+          @if (d.againstId) {
+            <div><div class="text-muted">Against ({{ d.againstType }})</div>
+              @if (d.againstType === 'Seller') { <a [routerLink]="['/sellers', d.againstId?._id]">{{ d.againstId?.shopName }}</a> } @else { <a [routerLink]="['/users', d.againstId?._id]">{{ d.againstId?.name || d.againstId?.mobileNumber }}</a> }
+              @if (d.againstId?.mobileNumber) { <div>{{ d.againstId.mobileNumber }}</div> }
+            </div>
+          }
+        </div>
+      </div>
+      @if (d.orderId) {
+        <div class="card mb-3">
+          <div class="card-header"><span class="card-title">Order</span></div>
+          <div class="card-body small">
+            <a [routerLink]="['/orders', d.orderId._id]" class="fw-semibold">{{ d.orderId.orderId }}</a>
+            <div>{{ d.orderId.finalAmount | inr }} · {{ d.orderId.paymentMethod }} · <app-status-badge [status]="d.orderId.orderStatus" /></div>
+            @if (d.orderId.refundedAmount) { <div class="text-danger">Refunded {{ d.orderId.refundedAmount | inr }}</div> }
+          </div>
+        </div>
+      }
+      <div class="card">
+        <div class="card-header"><span class="card-title">Timeline</span></div>
+        <div class="card-body">
+          <ul class="timeline">
+            @for (t of d.timeline; track $index) {
+              <li><div class="small fw-semibold">{{ t.action }}</div>@if (t.note) { <div class="small">{{ t.note }}</div> }<div class="cell-sub">{{ t.byName || 'system' }} · {{ t.at | date: 'd MMM, h:mm a' }}</div></li>
+            }
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <app-modal [open]="resolveOpen()" title="Resolve dispute" (closed)="resolveOpen.set(false)">
+    <label class="form-label required">Resolution</label>
+    <textarea class="form-control mb-3" rows="3" [(ngModel)]="resolution.resolution" placeholder="e.g. Seller will exchange the product; partial refund given"></textarea>
+    @if (d.orderId && auth.can('orders.refund')) {
+      <div class="row g-2 mb-3">
+        <div class="col-6"><label class="form-label">Refund amount (₹)</label><input type="number" class="form-control" [(ngModel)]="resolution.refundAmount" min="0" [max]="refundable()" /><div class="form-text">Max {{ refundable() | inr }}</div></div>
+        <div class="col-6"><label class="form-label">Refund to</label><select class="form-select" [(ngModel)]="resolution.refundTo"><option>None</option><option>User</option><option>Seller</option><option>Both</option></select></div>
+      </div>
+    }
+    <label class="form-label">Internal notes</label>
+    <textarea class="form-control" rows="2" [(ngModel)]="resolution.notes"></textarea>
+    <div modal-footer class="modal-footer">
+      <button class="btn btn-light" (click)="resolveOpen.set(false)">Cancel</button>
+      <button class="btn btn-success" (click)="resolve()" [disabled]="busy()">Resolve</button>
+    </div>
+  </app-modal>
+}

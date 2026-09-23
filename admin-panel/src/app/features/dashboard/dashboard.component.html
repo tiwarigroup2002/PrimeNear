@@ -1,0 +1,149 @@
+<app-page-header title="Dashboard" [subtitle]="'Welcome, ' + (auth.admin()?.fullName || '') + (lastUpdated() ? ' · updated ' + (lastUpdated() | date: 'shortTime') : '')">
+  <div class="btn-group btn-group-sm">
+    <button class="btn btn-outline-secondary" [class.active]="range() === '7'" (click)="setRange('7')">7 days</button>
+    <button class="btn btn-outline-secondary" [class.active]="range() === '30'" (click)="setRange('30')">30 days</button>
+    <button class="btn btn-outline-secondary" [class.active]="range() === '90'" (click)="setRange('90')">90 days</button>
+    <button class="btn btn-outline-secondary" [class.active]="range() === 'custom'" (click)="setRange('custom')">Custom</button>
+  </div>
+  @if (range() === 'custom') {
+    <input type="date" class="form-control form-control-sm w-auto" [(ngModel)]="from" [max]="to" />
+    <input type="date" class="form-control form-control-sm w-auto" [(ngModel)]="to" [min]="from" />
+    <button class="btn btn-sm btn-primary" (click)="load()">Apply</button>
+  }
+  <button class="btn btn-sm btn-outline-secondary" (click)="load()" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
+  <button class="btn btn-sm btn-outline-secondary" (click)="export()" [disabled]="!data()"><i class="bi bi-download me-1"></i>Export</button>
+</app-page-header>
+
+<app-state [loading]="loading() && !data()" [error]="!data() ? error() : null" />
+
+@if (data(); as d) {
+  <!-- Platform overview -->
+  <div class="row g-3 mb-3">
+    <div class="col-sm-6 col-xl-3">
+      <app-stat-card label="Total revenue" [value]="d.stats.totalRevenue | inr: 0" icon="bi-currency-rupee" color="primary" [change]="d.stats.revenueGrowth" changeLabel="in period" [link]="auth.can('analytics.view') ? '/analytics' : null" />
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <app-stat-card label="Total orders" [value]="d.stats.totalOrders | number" icon="bi-bag-check" color="success" [change]="d.stats.orderGrowth" changeLabel="in period" [link]="auth.can('orders.view') ? '/orders' : null" />
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <app-stat-card label="Active sellers" [value]="d.stats.activeSellers + ' / ' + d.stats.totalSellers" icon="bi-shop" color="warning" hint="active / total" [link]="auth.can('sellers.view') ? '/sellers' : null" />
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <app-stat-card label="Users" [value]="d.stats.totalUsers | number" icon="bi-people" color="info" [hint]="d.stats.activeUsers + ' ordered in last 30 days'" [link]="auth.can('users.view') ? '/users' : null" />
+    </div>
+  </div>
+
+  <!-- Today -->
+  <div class="card mb-3">
+    <div class="card-body py-3">
+      <div class="row text-center g-3">
+        <div class="col-6 col-md"><div class="text-muted small">Today's orders</div><div class="fs-5 fw-semibold">{{ d.today.orders }}</div></div>
+        <div class="col-6 col-md"><div class="text-muted small">Today's revenue</div><div class="fs-5 fw-semibold">{{ d.today.revenue | inr: 0 }}</div></div>
+        <div class="col-6 col-md"><div class="text-muted small">New users today</div><div class="fs-5 fw-semibold">{{ d.today.newUsers }}</div></div>
+        <div class="col-6 col-md"><div class="text-muted small">New sellers today</div><div class="fs-5 fw-semibold">{{ d.today.newSellers }}</div></div>
+        <div class="col-6 col-md"><div class="text-muted small">Avg. order value</div><div class="fs-5 fw-semibold">{{ d.stats.avgOrderValue | inr: 0 }}</div></div>
+        <div class="col-6 col-md"><div class="text-muted small">Pending payouts</div><div class="fs-5 fw-semibold text-warning">{{ d.stats.pendingPayouts | inr: 0 }}</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-xl-8">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between">
+          <span class="card-title">Revenue trend</span>
+          <span class="small text-muted">{{ d.stats.periodRevenue | inr: 0 }} in period</span>
+        </div>
+        <div class="card-body"><app-chart type="line" [labels]="labels()" [datasets]="revenueSets()" [currency]="true" [legend]="false" /></div>
+      </div>
+    </div>
+    <div class="col-xl-4">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="card-title"><i class="bi bi-bell me-1"></i>Alerts</span>
+          <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ d.alerts.length }}</span>
+        </div>
+        <div class="list-group list-group-flush">
+          @for (a of d.alerts; track $index) {
+            <a class="list-group-item list-group-item-action d-flex gap-2 align-items-start" (click)="router.navigateByUrl(a.link)" role="button">
+              <i class="bi {{ alertIcon(a.level) }} mt-1"></i>
+              <span class="small">{{ a.message }}</span>
+            </a>
+          } @empty {
+            <div class="text-center text-muted py-5"><i class="bi bi-check2-circle fs-2 d-block text-success"></i>All good, no alerts</div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header"><span class="card-title">Orders trend</span></div>
+        <div class="card-body"><app-chart type="bar" [labels]="labels()" [datasets]="orderSets()" [legend]="false" [height]="250" /></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header"><span class="card-title">Growth (cumulative)</span></div>
+        <div class="card-body"><app-chart type="line" [labels]="labels()" [datasets]="growthSets()" [height]="250" /></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-xl-7">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between">
+          <span class="card-title">Recent orders</span>
+          @if (auth.can('orders.view')) { <a routerLink="/orders" class="small">View all</a> }
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead><tr><th>Order</th><th>Customer</th><th>Seller</th><th class="text-end">Amount</th><th>Status</th></tr></thead>
+            <tbody>
+              @for (o of d.recentOrders; track o._id) {
+                <tr class="row-link" [routerLink]="['/orders', o._id]">
+                  <td><div class="cell-title small">{{ o.orderId }}</div><div class="cell-sub">{{ o.createdAt | date: 'd MMM, h:mm a' }}</div></td>
+                  <td>{{ o.userId?.name || o.customerSnapshot?.name || '—' }}</td>
+                  <td>{{ o.sellerId?.shopName }}</td>
+                  <td class="text-end">{{ o.finalAmount | inr }}</td>
+                  <td><app-status-badge [status]="o.orderStatus" /></td>
+                </tr>
+              } @empty {
+                <tr><td colspan="5" class="text-center text-muted py-4">No orders yet</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-5">
+      <div class="card mb-3">
+        <div class="card-header"><span class="card-title">Top sellers (period)</span></div>
+        <ul class="list-group list-group-flush">
+          @for (s of d.topSellers; track s.sellerId; let i = $index) {
+            <li class="list-group-item d-flex align-items-center gap-3 row-link" [routerLink]="['/sellers', s.sellerId]">
+              <span class="badge rounded-pill text-bg-light border">{{ i + 1 }}</span>
+              <div class="flex-grow-1 min-w-0"><div class="text-truncate fw-semibold small">{{ s.name }}</div><div class="cell-sub">{{ s.orders }} orders · ⭐ {{ s.rating | number: '1.1-1' }}</div></div>
+              <div class="fw-semibold small">{{ s.revenue | inr: 0 }}</div>
+            </li>
+          } @empty { <li class="list-group-item text-muted small text-center py-3">No sales in this period</li> }
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Top products (period)</span></div>
+        <ul class="list-group list-group-flush">
+          @for (p of d.topProducts; track p.productId) {
+            <li class="list-group-item d-flex align-items-center gap-3">
+              <span class="thumb"><i class="bi bi-box"></i></span>
+              <div class="flex-grow-1 min-w-0"><div class="text-truncate fw-semibold small">{{ p.name }}</div><div class="cell-sub">{{ p.seller }}</div></div>
+              <div class="text-end small"><div class="fw-semibold">{{ p.sales }} sold</div><div class="text-muted">{{ p.revenue | inr: 0 }}</div></div>
+            </li>
+          } @empty { <li class="list-group-item text-muted small text-center py-3">No sales in this period</li> }
+        </ul>
+      </div>
+    </div>
+  </div>
+}

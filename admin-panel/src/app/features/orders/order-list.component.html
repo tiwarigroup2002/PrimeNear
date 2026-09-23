@@ -1,0 +1,62 @@
+<app-page-header title="Orders" icon="bi-bag-check" [subtitle]="list.total() + ' orders · ' + ((list.extra()['totalRevenue'] ?? 0) | inr: 0) + ' collected'">
+  <button class="btn btn-outline-secondary btn-sm" (click)="export()"><i class="bi bi-download me-1"></i>Export</button>
+</app-page-header>
+
+<ul class="nav nav-pills mb-3 gap-1 small flex-nowrap overflow-auto">
+  <li class="nav-item"><a class="nav-link py-1" [class.active]="!list.filters['status']" (click)="statusTab('')">All</a></li>
+  @for (s of statuses; track s) {
+    <li class="nav-item"><a class="nav-link py-1" [class.active]="list.filters['status'] === s" (click)="statusTab(s)">{{ s }}</a></li>
+  }
+</ul>
+
+<div class="card">
+  <div class="filter-bar">
+    <div class="input-group input-group-sm search">
+      <span class="input-group-text"><i class="bi bi-search"></i></span>
+      <input class="form-control" placeholder="Order ID, customer name or mobile..." [(ngModel)]="list.filters['search']" (keyup.enter)="list.apply()" />
+    </div>
+    <select class="form-select form-select-sm" [(ngModel)]="list.filters['paymentStatus']" (change)="list.apply()">
+      <option value="">Any payment</option><option value="Completed">Paid</option><option value="Pending">Pending</option><option value="Failed">Failed</option><option value="PartiallyRefunded">Partly refunded</option><option value="Refunded">Refunded</option>
+    </select>
+    <select class="form-select form-select-sm" [(ngModel)]="list.filters['paymentMethod']" (change)="list.apply()">
+      <option value="">Online & cash</option><option value="Online">Online</option><option value="Cash">Cash</option>
+    </select>
+    <select class="form-select form-select-sm" [(ngModel)]="list.filters['source']" (change)="list.apply()">
+      <option value="">All sources</option><option value="Online">User app</option><option value="POS">Seller bill (POS)</option>
+    </select>
+    <div style="min-width: 200px"><app-entity-select kind="seller" placeholder="Seller..." [small]="true" (selected)="list.filters['seller'] = $event?._id || ''; list.apply()" /></div>
+    <input type="date" class="form-control form-control-sm" [(ngModel)]="list.filters['from']" (change)="list.apply()" title="From" />
+    <input type="date" class="form-control form-control-sm" [(ngModel)]="list.filters['to']" (change)="list.apply()" title="To" />
+    <button class="btn btn-sm btn-primary" (click)="list.apply()">Search</button>
+    <button class="btn btn-sm btn-link" (click)="list.reset(defaults)">Reset</button>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>Order ID</th><th>Customer</th><th>Seller</th><th class="text-center">Items</th>
+          <th class="text-end th-sort" (click)="sort('amount')">Amount <i class="bi {{ sortIcon('amount') }}"></i></th>
+          <th>Payment</th>
+          <th class="th-sort" (click)="sort('status')">Status <i class="bi {{ sortIcon('status') }}"></i></th>
+          <th class="th-sort" (click)="sort('date')">Date <i class="bi {{ sortIcon('date') }}"></i></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (o of list.items(); track o._id) {
+          <tr class="row-link" [routerLink]="['/orders', o._id]">
+            <td><span class="cell-title small">{{ o.orderId }}</span>@if (o.source === 'POS') { <span class="badge text-bg-light border ms-1">POS</span> }</td>
+            <td>{{ o.userId?.name || o.customerSnapshot?.name || '—' }}<div class="cell-sub">{{ o.userId?.mobileNumber || o.customerSnapshot?.mobileNumber }}</div></td>
+            <td>{{ o.sellerId?.shopName }}</td>
+            <td class="text-center">{{ o.items.length }}</td>
+            <td class="text-end fw-semibold">{{ o.finalAmount | inr }}@if (o.refundedAmount) { <div class="cell-sub text-danger">-{{ o.refundedAmount | inr }}</div> }</td>
+            <td><span class="small">{{ o.paymentMethod }}</span> <app-status-badge [status]="o.paymentStatus" /></td>
+            <td><app-status-badge [status]="o.orderStatus" /></td>
+            <td class="small text-nowrap">{{ o.createdAt | date: 'd MMM y' }}<div class="cell-sub">{{ o.createdAt | date: 'h:mm a' }}</div></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  <app-state [loading]="list.loading()" [error]="list.error()" [empty]="!list.loading() && !list.items().length" emptyText="No orders match the filters" icon="bi-bag" />
+  <app-pagination [page]="list.page" [pages]="list.pages()" [total]="list.total()" [limit]="list.limit" (pageChange)="list.goTo($event)" (limitChange)="list.setLimit($event)" />
+</div>

@@ -1,0 +1,225 @@
+<app-page-header [title]="order() ? 'Order ' + order().orderId : 'Order'" back="/orders" backLabel="All orders">
+  @if (order(); as o) {
+    <button class="btn btn-sm btn-outline-secondary no-print" (click)="print()"><i class="bi bi-printer me-1"></i>Print invoice</button>
+    <ng-container *appCan="'orders.manage'">
+      @if (o.orderStatus !== 'Cancelled') { <button class="btn btn-sm btn-outline-primary no-print" (click)="openStatus()"><i class="bi bi-arrow-repeat me-1"></i>Update status</button> }
+      @if (isOpen()) { <button class="btn btn-sm btn-outline-danger no-print" (click)="cancelReason = ''; cancelRefund = true; cancelOpen.set(true)"><i class="bi bi-x-circle me-1"></i>Cancel order</button> }
+    </ng-container>
+    @if (canRefund()) { <button *appCan="'orders.refund'" class="btn btn-sm btn-warning no-print" (click)="openRefund()"><i class="bi bi-arrow-counterclockwise me-1"></i>Refund</button> }
+  }
+</app-page-header>
+<app-state [loading]="loading()" [error]="error()" />
+
+@if (order(); as o) {
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+        <div>
+          <div class="small text-muted">Placed {{ o.createdAt | date: 'd MMM y, h:mm a' }} · {{ o.source === 'POS' ? 'Seller bill (POS)' : 'User app' }}</div>
+          <div class="mt-1"><app-status-badge [status]="o.orderStatus" /> <app-status-badge [status]="o.paymentStatus" /></div>
+        </div>
+        <div class="text-end"><div class="small text-muted">Total</div><div class="fs-4 fw-bold">{{ o.finalAmount | inr }}</div></div>
+      </div>
+      @if (o.orderStatus === 'Cancelled') {
+        <div class="alert alert-danger small mb-0"><i class="bi bi-x-octagon me-1"></i>Cancelled — {{ o.cancelReason }}</div>
+      } @else if (o.orderStatus === 'Returned') {
+        <div class="alert alert-secondary small mb-0"><i class="bi bi-arrow-return-left me-1"></i>Returned — {{ o.returnReason }}</div>
+      } @else {
+        <div class="status-flow">
+          @for (s of flow; track s; let i = $index) {
+            <div class="step" [class.done]="i < stepIndex() || (i === stepIndex() && s === 'Delivered')" [class.current]="i === stepIndex() && s !== 'Delivered'">
+              <div class="dot">@if (i <= stepIndex()) { <i class="bi bi-check-lg small"></i> } @else { {{ i + 1 }} }</div>
+              <div>{{ s }}</div>
+              @if (historyAt(s); as at) { <div class="cell-sub">{{ at | date: 'd MMM, h:mm a' }}</div> }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-xl-8">
+      <div class="card mb-3">
+        <div class="card-header"><span class="card-title">Items</span></div>
+        <div class="table-responsive">
+          <table class="table">
+            <thead><tr><th>Product</th><th class="text-center">Qty</th><th class="text-end">Price</th><th class="text-end">GST</th><th class="text-end">Total</th></tr></thead>
+            <tbody>
+              @for (it of o.items; track $index) {
+                <tr>
+                  <td>@if (it.productId) { <a [routerLink]="['/products', it.productId]">{{ it.productName }}</a> } @else { {{ it.productName }} }</td>
+                  <td class="text-center">{{ it.quantity }}</td>
+                  <td class="text-end">{{ it.price | inr }}</td>
+                  <td class="text-end">{{ it.gst | inr }} <span class="cell-sub">({{ it.gstRate }}%)</span></td>
+                  <td class="text-end fw-semibold">{{ it.subtotal | inr }}</td>
+                </tr>
+              }
+            </tbody>
+            <tfoot class="small">
+              <tr><td colspan="4" class="text-end text-muted">Subtotal</td><td class="text-end">{{ o.subtotal | inr }}</td></tr>
+              <tr><td colspan="4" class="text-end text-muted">GST</td><td class="text-end">{{ o.gstAmount | inr }}</td></tr>
+              @if (o.deliveryCharge) { <tr><td colspan="4" class="text-end text-muted">Delivery</td><td class="text-end">{{ o.deliveryCharge | inr }}</td></tr> }
+              @if (o.discount) { <tr><td colspan="4" class="text-end text-muted">Discount</td><td class="text-end">-{{ o.discount | inr }}</td></tr> }
+              <tr class="fs-6"><td colspan="4" class="text-end fw-semibold">Total</td><td class="text-end fw-bold">{{ o.finalAmount | inr }}</td></tr>
+              @if (o.refundedAmount) { <tr class="text-danger"><td colspan="4" class="text-end">Refunded</td><td class="text-end">-{{ o.refundedAmount | inr }}</td></tr> }
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-header"><span class="card-title">Payments & refunds</span></div>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>Transaction</th><th>Type</th><th>Method</th><th class="text-end">Amount</th><th>Status</th><th>Date</th></tr></thead>
+            <tbody>
+              @for (p of data().payments; track p._id) {
+                <tr>
+                  <td><code class="ref">{{ p.transactionId }}</code>@if (p.razorpayPaymentId) { <div class="cell-sub">{{ p.razorpayPaymentId }}</div> }</td>
+                  <td>{{ p.type }}</td><td>{{ p.method }}@if (p.gatewayMethod) { <span class="cell-sub"> · {{ p.gatewayMethod }}</span> }</td>
+                  <td class="text-end" [class.text-danger]="p.type === 'Refund'">{{ p.amount | inr }}</td>
+                  <td><app-status-badge [status]="p.status" /></td><td class="small">{{ p.createdAt | date: 'd MMM, h:mm a' }}</td>
+                </tr>
+              } @empty { <tr><td colspan="6" class="text-center text-muted py-3">No payment records</td></tr> }
+            </tbody>
+          </table>
+        </div>
+        @if (data().refunds.length) {
+          <div class="card-body border-top small">
+            <strong>Refunds</strong>
+            @for (r of data().refunds; track r._id) {
+              <div class="d-flex justify-content-between border-bottom py-1">
+                <span><code class="ref">{{ r.refundId }}</code> · {{ r.reason }} · by {{ r.initiatedBy?.fullName || 'system' }} · {{ r.method }}</span>
+                <span>{{ r.amount | inr }} <app-status-badge [status]="r.status" /></span>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="card no-print">
+        <div class="card-header"><span class="card-title">Internal notes & history</span></div>
+        <div class="card-body">
+          <ul class="timeline mb-3">
+            @for (n of o.notes; track n._id) {
+              <li class="muted"><div class="small"><strong>{{ n.byName || n.byType }}</strong> <span class="text-muted">{{ n.at | date: 'd MMM, h:mm a' }}</span></div><div class="text-pre">{{ n.text }}</div></li>
+            }
+            @for (h of o.statusHistory; track $index) {
+              <li><div class="small"><app-status-badge [status]="h.status" /> by {{ h.byName || h.byType || 'system' }} <span class="text-muted">{{ h.at | date: 'd MMM y, h:mm a' }}</span></div>@if (h.note) { <div class="small text-muted">{{ h.note }}</div> }</li>
+            }
+          </ul>
+          <ng-container *appCan="['orders.manage', 'disputes.manage']">
+            <div class="input-group">
+              <input class="form-control" placeholder="Add an internal note (e.g. 'Pack in black paper')" [(ngModel)]="note" (keyup.enter)="addNote()" />
+              <button class="btn btn-outline-primary" (click)="addNote()">Add note</button>
+            </div>
+          </ng-container>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card mb-3">
+        <div class="card-header"><span class="card-title">Customer</span></div>
+        <div class="card-body">
+          @if (o.userId) { <a [routerLink]="['/users', o.userId._id]" class="fw-semibold">{{ o.userId.name || 'Customer' }}</a> } @else { <span class="fw-semibold">{{ o.customerSnapshot?.name || 'Walk-in customer' }}</span> }
+          <div class="small text-muted">{{ customerPhone() }}</div>
+          @if (customerPhone()) {
+            <div class="d-flex gap-2 mt-2 no-print">
+              <a class="btn btn-sm btn-outline-secondary" [href]="'tel:' + customerPhone()"><i class="bi bi-telephone"></i> Call</a>
+              <a class="btn btn-sm btn-outline-success" [href]="'https://wa.me/91' + customerPhone() + '?text=' + ('Regarding your order ' + o.orderId)" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> WhatsApp</a>
+            </div>
+          }
+          @if (o.deliveryAddress?.fullAddress) {
+            <hr />
+            <div class="small text-muted mb-1">Delivery address</div>
+            <div class="small">{{ o.deliveryAddress.name }}<br />{{ o.deliveryAddress.fullAddress }}<br />{{ o.deliveryAddress.city }} {{ o.deliveryAddress.zipCode }}<br />{{ o.deliveryAddress.phoneNumber }}</div>
+          }
+        </div>
+      </div>
+      <div class="card mb-3">
+        <div class="card-header"><span class="card-title">Seller</span></div>
+        <div class="card-body">
+          <a [routerLink]="['/sellers', o.sellerId?._id]" class="fw-semibold">{{ o.sellerId?.shopName }}</a>
+          <div class="small text-muted">{{ o.sellerId?.ownerName }} · {{ o.sellerId?.mobileNumber }}</div>
+          <div class="d-flex gap-2 mt-2 no-print">
+            <a class="btn btn-sm btn-outline-secondary" [href]="'tel:' + o.sellerId?.mobileNumber"><i class="bi bi-telephone"></i> Call</a>
+            <a class="btn btn-sm btn-outline-success" [href]="'https://wa.me/91' + o.sellerId?.mobileNumber + '?text=' + ('Regarding order ' + o.orderId)" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> WhatsApp</a>
+          </div>
+        </div>
+      </div>
+      <div class="card mb-3">
+        <div class="card-header"><span class="card-title">Payment & settlement</span></div>
+        <div class="card-body">
+          <dl class="dl-grid small">
+            <dt>Method</dt><dd>{{ o.paymentMethod }}</dd>
+            <dt>Status</dt><dd><app-status-badge [status]="o.paymentStatus" /></dd>
+            @if (o.razorpayPaymentId) { <dt>Razorpay ID</dt><dd><code class="ref">{{ o.razorpayPaymentId }}</code></dd> }
+            <dt>Commission</dt><dd>{{ o.commissionRate }}% = {{ o.commissionAmount | inr }}</dd>
+            <dt>Seller share</dt><dd>{{ o.finalAmount - o.commissionAmount - (o.refundedAmount || 0) | inr }}</dd>
+            <dt>Settlement</dt><dd><app-status-badge [status]="o.settlementStatus" /> @if (o.payoutId) { <a [routerLink]="['/payments/payouts', o.payoutId._id]" class="small ms-1">{{ o.payoutId.payoutId }}</a> }</dd>
+            @if (o.deliveredAt) { <dt>Delivered</dt><dd>{{ o.deliveredAt | date: 'd MMM y, h:mm a' }}</dd> }
+          </dl>
+        </div>
+      </div>
+      @if (data().disputes.length) {
+        <div class="card">
+          <div class="card-header"><span class="card-title">Disputes</span></div>
+          <ul class="list-group list-group-flush">
+            @for (d of data().disputes; track d._id) {
+              <li class="list-group-item small row-link" [routerLink]="['/disputes', d._id]"><code class="ref">{{ d.ticketId }}</code> {{ d.title }} <app-status-badge [status]="d.status" /></li>
+            }
+          </ul>
+        </div>
+      }
+    </div>
+  </div>
+
+  <app-modal [open]="statusOpen()" title="Update order status" (closed)="statusOpen.set(false)">
+    <p class="small text-muted">Current status: <app-status-badge [status]="o.orderStatus" />. Admins can override the normal flow; the customer and seller are notified.</p>
+    <label class="form-label">New status</label>
+    <select class="form-select mb-3" [(ngModel)]="newStatus">
+      <option value="">Select...</option>
+      @for (s of statuses; track s) { <option [value]="s" [disabled]="s === o.orderStatus">{{ s }}</option> }
+    </select>
+    <label class="form-label">Note (optional)</label>
+    <textarea class="form-control" rows="2" [(ngModel)]="statusNote"></textarea>
+    @if (newStatus === 'Returned') { <div class="alert alert-info small mt-2 mb-0">Items will be added back to stock. Issue a refund separately if needed.</div> }
+    <div modal-footer class="modal-footer">
+      <button class="btn btn-light" (click)="statusOpen.set(false)">Cancel</button>
+      <button class="btn btn-primary" (click)="saveStatus()" [disabled]="busy()">Update</button>
+    </div>
+  </app-modal>
+
+  <app-modal [open]="refundOpen()" title="Refund order" (closed)="refundOpen.set(false)">
+    <p class="small text-muted">Refundable: <strong>{{ data().refundableAmount | inr }}</strong>.
+      @if (o.paymentMethod === 'Online' && o.razorpayPaymentId) { Refunded via Razorpay if configured, otherwise recorded as manual. } @else { Cash order — the refund is recorded; hand the cash back manually. }
+      @if (o.settlementStatus === 'Settled' || o.settlementStatus === 'InPayout') { The seller share will be recovered from their next payout. }
+    </p>
+    <label class="form-label">Amount (₹)</label>
+    <input type="number" class="form-control mb-3" [(ngModel)]="refundAmount" [max]="data().refundableAmount" min="1" step="0.01" />
+    <label class="form-label">Reason</label>
+    <textarea class="form-control" rows="2" [(ngModel)]="refundReason" placeholder="e.g. Damaged product"></textarea>
+    <div modal-footer class="modal-footer">
+      <button class="btn btn-light" (click)="refundOpen.set(false)">Cancel</button>
+      <button class="btn btn-warning" (click)="saveRefund()" [disabled]="busy()">Refund {{ refundAmount | inr }}</button>
+    </div>
+  </app-modal>
+
+  <app-modal [open]="cancelOpen()" title="Cancel order" (closed)="cancelOpen.set(false)">
+    <p class="small text-muted">Items go back to stock. Customer and seller are notified.</p>
+    <label class="form-label">Reason</label>
+    <textarea class="form-control mb-3" rows="2" [(ngModel)]="cancelReason"></textarea>
+    @if (o.paymentStatus === 'Completed' || o.paymentStatus === 'PartiallyRefunded') {
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="cr" [(ngModel)]="cancelRefund" />
+        <label class="form-check-label" for="cr">Refund {{ data().refundableAmount | inr }} to the customer</label>
+      </div>
+    }
+    <div modal-footer class="modal-footer">
+      <button class="btn btn-light" (click)="cancelOpen.set(false)">Keep order</button>
+      <button class="btn btn-danger" (click)="saveCancel()" [disabled]="busy()">Cancel order</button>
+    </div>
+  </app-modal>
+}

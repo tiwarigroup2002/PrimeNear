@@ -1,0 +1,168 @@
+<app-page-header [title]="isEdit ? 'Edit seller' : 'Add new seller'" icon="bi-shop" [back]="isEdit ? ['/sellers', id] : '/sellers'" backLabel="Back" />
+
+<app-state [loading]="loading()" [error]="error()" />
+
+@if (!loading() && !error()) {
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <div class="row g-3">
+      <div class="col-xl-8">
+        <div class="card mb-3">
+          <div class="card-header"><span class="card-title">Shop details</span></div>
+          <div class="card-body row g-3">
+            <div class="col-md-6">
+              <label class="form-label required">Shop name</label>
+              <input class="form-control" formControlName="shopName" [class.is-invalid]="invalid('shopName')" />
+              <div class="invalid-feedback">Shop name is required (2-100 characters)</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label required">Owner name</label>
+              <input class="form-control" formControlName="ownerName" [class.is-invalid]="invalid('ownerName')" />
+              <div class="invalid-feedback">Owner name is required</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label required">Mobile number</label>
+              <div class="input-group has-validation">
+                <span class="input-group-text">+91</span>
+                <input class="form-control" formControlName="mobileNumber" maxlength="10" inputmode="numeric" [class.is-invalid]="invalid('mobileNumber')" />
+                <div class="invalid-feedback">Enter a valid 10 digit mobile number</div>
+              </div>
+              <div class="form-text">The seller logs in to the seller app with this number (OTP). One owner can have several shops.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Email</label>
+              <input class="form-control" type="email" formControlName="email" [class.is-invalid]="invalid('email')" />
+              <div class="invalid-feedback">Enter a valid email</div>
+            </div>
+            <div class="col-12">
+              <label class="form-label required">Shop address</label>
+              <textarea class="form-control" rows="2" formControlName="shopAddress" [class.is-invalid]="invalid('shopAddress')"></textarea>
+              <div class="invalid-feedback">Address is required</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">GST number</label>
+              <input class="form-control text-uppercase" formControlName="gstNumber" placeholder="23AABCT0123A1Z0" [class.is-invalid]="invalid('gstNumber')" />
+              <div class="invalid-feedback">Invalid GSTIN format</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mb-3">
+          <div class="card-header"><span class="card-title">Location</span></div>
+          <div class="card-body row g-3">
+            <div class="col-md-6">
+              <label class="form-label required">Tahsil</label>
+              <select class="form-select" formControlName="tahsilId" (change)="onTahsilChange()" [class.is-invalid]="invalid('tahsilId')">
+                <option value="">Select tahsil</option>
+                @for (t of tahsils(); track t._id) { <option [value]="t._id">{{ t.name }} — {{ t.district }}</option> }
+              </select>
+              <div class="invalid-feedback">Select a tahsil</div>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Districts where the seller can sell</label>
+              <div class="d-flex flex-wrap gap-2">
+                @for (d of districts(); track d._id) {
+                  <input type="checkbox" class="btn-check" [id]="'d' + d._id" [checked]="form.value.districtIds?.includes(d._id)" (change)="toggleDistrict(d._id, $any($event.target).checked)" />
+                  <label class="btn btn-sm btn-outline-primary" [for]="'d' + d._id">{{ d.name }}</label>
+                }
+              </div>
+              <div class="form-text">If none is selected, the tahsil's district is used.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mb-3" formGroupName="bankDetails">
+          <div class="card-header"><span class="card-title">Payout details</span></div>
+          <div class="card-body row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Account holder</label>
+              <input class="form-control" formControlName="accountHolder" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Account number</label>
+              <input class="form-control" formControlName="accountNumber" [class.is-invalid]="invalid('bankDetails.accountNumber')" />
+              <div class="invalid-feedback">6–20 digits</div>
+              @if (isEdit) { <div class="form-text">Leave the masked value to keep the current account.</div> }
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">IFSC code</label>
+              <input class="form-control text-uppercase" formControlName="ifscCode" [class.is-invalid]="invalid('bankDetails.ifscCode')" />
+              <div class="invalid-feedback">Invalid IFSC (e.g. SBIN0001234)</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Bank name</label>
+              <input class="form-control" formControlName="bankName" />
+            </div>
+          </div>
+          <div class="card-body pt-0" [formGroup]="form">
+            <label class="form-label">UPI ID (alternative)</label>
+            <input class="form-control" formControlName="upiId" placeholder="shop@upi" [class.is-invalid]="invalid('upiId')" />
+            <div class="invalid-feedback">Invalid UPI ID</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-xl-4">
+        <div class="card mb-3">
+          <div class="card-header"><span class="card-title">Shop image / logo</span></div>
+          <div class="card-body text-center">
+            @if (imagePreview()) { <img [src]="imagePreview()" class="rounded mb-3 border" style="max-width: 100%; max-height: 180px; object-fit: cover" alt="Shop" /> }
+            @else { <div class="thumb thumb-lg mx-auto mb-3"><i class="bi bi-image"></i></div> }
+            <input type="file" class="form-control form-control-sm" accept="image/*" (change)="onImage($event)" />
+          </div>
+        </div>
+
+        <div class="card mb-3">
+          <div class="card-header"><span class="card-title">Commission</span></div>
+          <div class="card-body">
+            <div class="form-check form-switch mb-2">
+              <input class="form-check-input" type="checkbox" id="defc" formControlName="useDefaultCommission" />
+              <label class="form-check-label" for="defc">Use platform default ({{ defaultCommission() }}%)</label>
+            </div>
+            @if (!form.getRawValue().useDefaultCommission) {
+              <div class="input-group">
+                <input type="number" class="form-control" formControlName="commissionRate" min="0" max="100" step="0.5" [class.is-invalid]="invalid('commissionRate')" />
+                <span class="input-group-text">%</span>
+              </div>
+            }
+            @if (!auth.can('sellers.commission')) { <div class="form-text">You do not have permission to change commission.</div> }
+          </div>
+        </div>
+
+        <div class="card mb-3" formGroupName="settings">
+          <div class="card-header"><span class="card-title">Delivery</span></div>
+          <div class="card-body">
+            <div class="form-check form-switch mb-2">
+              <input class="form-check-input" type="checkbox" id="del" formControlName="enableDelivery" />
+              <label class="form-check-label" for="del">Home delivery available</label>
+            </div>
+            <div class="form-check form-switch mb-3">
+              <input class="form-check-input" type="checkbox" id="cod" formControlName="allowCashOnDelivery" />
+              <label class="form-check-label" for="cod">Allow cash on delivery</label>
+            </div>
+            <div class="row g-2">
+              <div class="col-6"><label class="form-label small">Delivery charge (₹)</label><input type="number" min="0" class="form-control form-control-sm" formControlName="deliveryCharge" /></div>
+              <div class="col-6"><label class="form-label small">Free above (₹)</label><input type="number" min="0" class="form-control form-control-sm" formControlName="freeDeliveryAbove" /></div>
+            </div>
+          </div>
+        </div>
+
+        @if (!isEdit) {
+          <div class="card mb-3">
+            <div class="card-body">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="act" [checked]="form.value.status === 'Active'" (change)="form.patchValue({ status: $any($event.target).checked ? 'Active' : 'Blocked' })" />
+                <label class="form-check-label" for="act">Active (can sell immediately)</label>
+              </div>
+            </div>
+          </div>
+        }
+
+        <div class="d-grid gap-2">
+          <button class="btn btn-primary" [disabled]="saving()">
+            @if (saving()) { <span class="spinner-border spinner-border-sm me-2"></span> }{{ isEdit ? 'Save changes' : 'Add seller' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </form>
+}

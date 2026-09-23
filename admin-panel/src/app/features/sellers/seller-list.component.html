@@ -1,0 +1,76 @@
+<app-page-header title="Sellers" icon="bi-shop" [subtitle]="list.total() + ' shops · total revenue ' + ((list.extra()['totalRevenue'] ?? 0) | inr: 0)">
+  <button class="btn btn-outline-secondary btn-sm" (click)="export()"><i class="bi bi-download me-1"></i>Export</button>
+  <a *appCan="'sellers.manage'" routerLink="/sellers/new" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Add seller</a>
+</app-page-header>
+
+<div class="card">
+  <div class="filter-bar">
+    <div class="input-group input-group-sm search">
+      <span class="input-group-text"><i class="bi bi-search"></i></span>
+      <input class="form-control" placeholder="Search shop, owner, mobile..." [(ngModel)]="list.filters['search']" (keyup.enter)="list.apply()" />
+    </div>
+    <select class="form-select form-select-sm" [(ngModel)]="list.filters['status']" (change)="list.apply()">
+      <option value="">All statuses</option><option value="Active">Active</option><option value="Blocked">Blocked</option><option value="Deleted">Deleted</option>
+    </select>
+    <select class="form-select form-select-sm" [(ngModel)]="list.filters['tahsilId']" (change)="list.apply()">
+      <option value="">All tahsils</option>
+      @for (t of tahsils(); track t._id) { <option [value]="t._id">{{ t.name }} ({{ t.district }})</option> }
+    </select>
+    <select class="form-select form-select-sm" [(ngModel)]="list.filters['sortBy']" (change)="list.apply()">
+      <option value="recent">Newest first</option><option value="oldest">Oldest first</option><option value="name">Name A–Z</option><option value="rating">Top rated</option>
+    </select>
+    <button class="btn btn-sm btn-primary" (click)="list.apply()">Search</button>
+    <button class="btn btn-sm btn-link" (click)="list.reset({ search: '', status: '', tahsilId: '', districtId: '', sortBy: 'recent' })">Reset</button>
+    @if (selected().size) {
+      <div class="ms-auto d-flex gap-2 align-items-center" *appCan="'sellers.manage'">
+        <span class="small text-muted">{{ selected().size }} selected</span>
+        <button class="btn btn-sm btn-outline-danger" (click)="bulkBlock()" [disabled]="busy()"><i class="bi bi-slash-circle me-1"></i>Block selected</button>
+      </div>
+    }
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th style="width: 32px"><input type="checkbox" class="form-check-input" (change)="toggleAll($any($event.target).checked)" [checked]="selected().size && selected().size === list.items().length" /></th>
+          <th>Shop</th><th>Mobile</th><th>Location</th><th>Status</th><th class="text-end">Orders</th><th class="text-end">Revenue</th><th class="text-end">Customers</th><th>Rating</th><th>Joined</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (s of list.items(); track s._id) {
+          <tr>
+            <td><input type="checkbox" class="form-check-input" [checked]="selected().has(s._id)" (change)="toggle(s._id)" /></td>
+            <td>
+              <a [routerLink]="['/sellers', s._id]" class="d-flex align-items-center gap-2 text-decoration-none text-body">
+                @if (s.shopImage) { <img [src]="s.shopImage" class="thumb" alt="" /> } @else { <span class="thumb"><i class="bi bi-shop"></i></span> }
+                <span><span class="cell-title d-block">{{ s.shopName }}</span><span class="cell-sub">{{ s.ownerName }}</span></span>
+              </a>
+            </td>
+            <td>{{ s.mobileNumber }}</td>
+            <td>{{ s.tahsilId?.name }}<div class="cell-sub">{{ s.districtIds.length }} district(s)</div></td>
+            <td><app-status-badge [status]="s.status" /></td>
+            <td class="text-end">{{ s.orders | number }}</td>
+            <td class="text-end">{{ s.revenue | inr: 0 }}</td>
+            <td class="text-end">{{ s.customers | number }}</td>
+            <td>@if (s.ratingCount) { ⭐ {{ s.rating | number: '1.1-1' }} } @else { <span class="text-muted">—</span> }</td>
+            <td class="small">{{ s.createdAt | date: 'd MMM y' }}</td>
+            <td class="text-end text-nowrap">
+              <a [routerLink]="['/sellers', s._id]" class="btn btn-sm btn-light" title="View"><i class="bi bi-eye"></i></a>
+              @if (s.status !== 'Deleted') {
+                <a *appCan="'sellers.manage'" [routerLink]="['/sellers', s._id, 'edit']" class="btn btn-sm btn-light" title="Edit"><i class="bi bi-pencil"></i></a>
+                <ng-container *appCan="'sellers.manage'">
+                  @if (s.status === 'Active') { <button class="btn btn-sm btn-light text-warning" title="Block" (click)="block(s)"><i class="bi bi-slash-circle"></i></button> }
+                  @else { <button class="btn btn-sm btn-light text-success" title="Unblock" (click)="unblock(s)"><i class="bi bi-check-circle"></i></button> }
+                </ng-container>
+                <button *appCan="'sellers.delete'" class="btn btn-sm btn-light text-danger" title="Delete" (click)="remove(s)"><i class="bi bi-trash"></i></button>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  <app-state [loading]="list.loading()" [error]="list.error()" [empty]="!list.loading() && !list.items().length" emptyText="No sellers match the filters" icon="bi-shop" />
+  <app-pagination [page]="list.page" [pages]="list.pages()" [total]="list.total()" [limit]="list.limit" (pageChange)="list.goTo($event)" (limitChange)="list.setLimit($event)" />
+</div>

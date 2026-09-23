@@ -1,0 +1,118 @@
+<app-page-header title="User details" back="/users" backLabel="All users" />
+<app-state [loading]="loading()" [error]="error()" />
+
+@if (data(); as d) {
+  <div class="card mb-3">
+    <div class="card-body d-flex flex-wrap gap-3 align-items-center">
+      <span class="avatar avatar-initials" style="width: 64px; height: 64px; font-size: 1.4rem">{{ (d.user.name || '?').slice(0, 1).toUpperCase() }}</span>
+      <div class="flex-grow-1">
+        <h2 class="h4 mb-1">{{ d.user.name || 'Unnamed user' }} <app-status-badge [status]="d.user.status" /></h2>
+        <div class="text-muted small">
+          <i class="bi bi-telephone me-1"></i><a [href]="'tel:' + d.user.mobileNumber">{{ d.user.mobileNumber }}</a>
+          @if (d.user.email) { <span class="mx-2">·</span><i class="bi bi-envelope me-1"></i>{{ d.user.email }} }
+          <span class="mx-2">·</span><i class="bi bi-geo-alt me-1"></i>{{ d.user.tahsilId?.name || 'Location unknown' }}
+          <span class="mx-2">·</span>Joined {{ d.user.createdAt | date: 'd MMM y' }}
+          @if (d.user.lastLogin) { <span class="mx-2">·</span>Last login {{ d.user.lastLogin | date: 'd MMM y, h:mm a' }} }
+        </div>
+        @if (d.user.status === 'Blocked') { <div class="alert alert-danger py-1 px-2 small mt-2 mb-0 w-fit">Blocked: {{ d.user.blockReason }}</div> }
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-sm btn-outline-success" [href]="'https://wa.me/91' + d.user.mobileNumber" target="_blank" rel="noopener"><i class="bi bi-whatsapp me-1"></i>WhatsApp</a>
+        <ng-container *appCan="'users.manage'">
+          <button class="btn btn-sm btn-outline-primary" (click)="openEdit()"><i class="bi bi-pencil me-1"></i>Edit</button>
+          @if (d.user.status === 'Active') { <button class="btn btn-sm btn-outline-warning" (click)="block()"><i class="bi bi-slash-circle me-1"></i>Block</button> }
+          @else if (d.user.status === 'Blocked') { <button class="btn btn-sm btn-outline-success" (click)="unblock()">Unblock</button> }
+        </ng-container>
+        <button *appCan="'users.delete'" class="btn btn-sm btn-outline-danger" (click)="remove()"><i class="bi bi-trash"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3"><app-stat-card label="Total orders" [value]="d.analytics.totalOrders" icon="bi-bag" color="primary" /></div>
+    <div class="col-6 col-lg-3"><app-stat-card label="Total spent" [value]="d.analytics.totalSpent | inr: 0" icon="bi-currency-rupee" color="success" /></div>
+    <div class="col-6 col-lg-3"><app-stat-card label="Avg. order value" [value]="d.analytics.averageOrderValue | inr: 0" icon="bi-graph-up" color="info" /></div>
+    <div class="col-6 col-lg-3"><app-stat-card label="Last purchase" [value]="d.analytics.lastPurchase ? (d.analytics.lastPurchase | date: 'd MMM y') : '—'" icon="bi-clock-history" color="warning" /></div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-5">
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="card-title">Linked sellers ({{ d.linkedSellers.length }})</span>
+          <button *appCan="'users.manage'" class="btn btn-sm btn-outline-primary" (click)="linkSeller = null; linkOpen.set(true)"><i class="bi bi-link-45deg me-1"></i>Link seller</button>
+        </div>
+        <ul class="list-group list-group-flush">
+          @for (l of d.linkedSellers; track l.linkId) {
+            <li class="list-group-item d-flex align-items-center gap-2">
+              <span class="thumb"><i class="bi bi-shop"></i></span>
+              <div class="flex-grow-1 min-w-0">
+                <a [routerLink]="['/sellers', l.seller?._id]" class="fw-semibold text-decoration-none">{{ l.seller?.shopName }}</a>
+                <div class="cell-sub">{{ l.customerType }} · linked by {{ l.linkedBy }} · {{ l.linkedAt | date: 'd MMM y' }}</div>
+              </div>
+              <app-status-badge [status]="l.seller?.status" />
+              <button *appCan="'users.manage'" class="btn btn-sm btn-light text-danger" title="Remove" (click)="unlink(l)"><i class="bi bi-x-lg"></i></button>
+            </li>
+          } @empty {
+            <li class="list-group-item text-center text-muted py-4"><i class="bi bi-exclamation-triangle text-warning d-block fs-4"></i>Not linked to any seller – this user cannot log in to the user app.</li>
+          }
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Saved addresses</span></div>
+        <ul class="list-group list-group-flush">
+          @for (a of d.addresses; track a._id) {
+            <li class="list-group-item small">
+              <span class="badge text-bg-light border me-1">{{ a.type }}</span> @if (a.isDefault) { <span class="badge text-bg-primary">Default</span> }
+              <div class="mt-1">{{ a.fullAddress }}, {{ a.city }} {{ a.zipCode }}</div>
+              @if (a.phoneNumber) { <div class="text-muted">{{ a.phoneNumber }}</div> }
+            </li>
+          } @empty { <li class="list-group-item text-muted small text-center py-3">No saved addresses</li> }
+        </ul>
+      </div>
+    </div>
+    <div class="col-lg-7">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Order history ({{ ordersTotal() }})</span></div>
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead><tr><th>Order</th><th>Seller</th><th class="text-end">Amount</th><th>Status</th></tr></thead>
+            <tbody>
+              @for (o of orders(); track o._id) {
+                <tr class="row-link" [routerLink]="['/orders', o._id]">
+                  <td><div class="cell-title small">{{ o.orderId }}</div><div class="cell-sub">{{ o.createdAt | date: 'd MMM y' }}</div></td>
+                  <td>{{ o.sellerId?.shopName }}</td>
+                  <td class="text-end">{{ o.finalAmount | inr }} @if (o.refundedAmount) { <div class="cell-sub text-danger">-{{ o.refundedAmount | inr }} refunded</div> }</td>
+                  <td><app-status-badge [status]="o.orderStatus" /></td>
+                </tr>
+              } @empty { <tr><td colspan="4" class="text-center text-muted py-4">No orders yet</td></tr> }
+            </tbody>
+          </table>
+        </div>
+        <app-pagination [page]="ordersPage" [pages]="ordersPages()" [total]="ordersTotal()" [limit]="10" (pageChange)="ordersPage = $event; loadOrders()" />
+      </div>
+    </div>
+  </div>
+
+  <app-modal [open]="linkOpen()" title="Link to another seller" (closed)="linkOpen.set(false)">
+    <label class="form-label">Seller</label>
+    <app-entity-select kind="seller" placeholder="Search shop..." (selected)="linkSeller = $event?._id || null" />
+    <label class="form-label mt-3">Customer type</label>
+    <select class="form-select" [(ngModel)]="linkType"><option>Retail</option><option>Wholesale</option></select>
+    <div modal-footer class="modal-footer">
+      <button class="btn btn-light" (click)="linkOpen.set(false)">Cancel</button>
+      <button class="btn btn-primary" (click)="link()">Link user</button>
+    </div>
+  </app-modal>
+
+  <app-modal [open]="editOpen()" title="Edit user" (closed)="editOpen.set(false)">
+    <div class="mb-3"><label class="form-label">Name</label><input class="form-control" [(ngModel)]="edit.name" /></div>
+    <div class="mb-3"><label class="form-label">Email</label><input class="form-control" type="email" [(ngModel)]="edit.email" /></div>
+    <div><label class="form-label">Mobile number</label><input class="form-control" [(ngModel)]="edit.mobileNumber" maxlength="10" />
+      <div class="form-text">Changing the mobile logs the user out and updates all seller links.</div></div>
+    <div modal-footer class="modal-footer">
+      <button class="btn btn-light" (click)="editOpen.set(false)">Cancel</button>
+      <button class="btn btn-primary" (click)="saveEdit()">Save</button>
+    </div>
+  </app-modal>
+}

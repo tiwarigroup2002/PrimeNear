@@ -1,6 +1,6 @@
 const { Order, User, Seller, Product, Payment, Payout, Dispute, Customer } = require('../models');
 const { REVENUE_MATCH, NET_AMOUNT, TZ, round2, startOfDay, startOfMonth, addDays, periodRange } = require('./metrics');
-const { COMMISSION } = require('./payout.service');
+const { COMMISSION, pendingBySeller } = require('./payout.service');
 
 const DAY_MS = 86400000;
 
@@ -162,6 +162,7 @@ async function dashboard({ from, to } = {}) {
     alerts(),
     Payout.aggregate([{ $match: { status: { $in: ['Pending', 'Processing', 'Failed'] } } }, { $group: { _id: null, total: { $sum: '$amount' } } }]),
   ]);
+  const dueNow = (await pendingBySeller()).reduce((sum, r) => sum + Math.max(r.netAmount, 0), 0);
 
   return {
     stats: {
@@ -177,7 +178,8 @@ async function dashboard({ from, to } = {}) {
       periodOrders: current.orders,
       revenueGrowth: growth(current.revenue, previous.revenue),
       orderGrowth: growth(current.orders, previous.orders),
-      pendingPayouts: round2(pendingPayouts[0]?.total),
+      // due to sellers now + payouts created but not yet completed
+      pendingPayouts: round2(dueNow + (pendingPayouts[0]?.total || 0)),
     },
     today: {
       orders: todayTotals.orders,

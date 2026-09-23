@@ -1,0 +1,157 @@
+<app-page-header title="Settings" icon="bi-gear" [subtitle]="s()?.updatedAt ? 'Last updated ' + (s().updatedAt | date: 'd MMM y, h:mm a') : 'Platform configuration'" />
+@if (!canEdit) { <div class="alert alert-info small"><i class="bi bi-eye me-1"></i>You have read-only access to settings.</div> }
+<app-state [loading]="loading()" />
+
+@if (s(); as st) {
+  <div class="row g-3">
+    <div class="col-lg-3">
+      <div class="list-group">
+        @for (t of tabs; track t[0]) {
+          <a class="list-group-item list-group-item-action row-link" [class.active]="tab() === t[0]" (click)="setTab(t[0])"><i class="bi {{ t[2] }} me-2"></i>{{ t[1] }}</a>
+        }
+      </div>
+      <div class="card mt-3">
+        <div class="card-body small">
+          <div class="fw-semibold mb-2">Integrations</div>
+          <div><i class="bi" [class.bi-check-circle-fill]="st.integrations.razorpayConfigured" [class.text-success]="st.integrations.razorpayConfigured" [class.bi-x-circle]="!st.integrations.razorpayConfigured" [class.text-muted]="!st.integrations.razorpayConfigured"></i> Razorpay</div>
+          <div><i class="bi" [class.bi-check-circle-fill]="st.integrations.emailConfigured" [class.text-success]="st.integrations.emailConfigured" [class.bi-x-circle]="!st.integrations.emailConfigured" [class.text-muted]="!st.integrations.emailConfigured"></i> Email (SMTP)</div>
+          <div class="text-muted mt-2">API keys are configured on the server (.env) and are never shown here.</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-9">
+      <fieldset [disabled]="!canEdit || saving()">
+        @switch (tab()) {
+          @case ('general') {
+            <div class="card">
+              <div class="card-header"><span class="card-title">General</span></div>
+              <div class="card-body row g-3">
+                <div class="col-md-6"><label class="form-label">Platform name</label><input class="form-control" [(ngModel)]="general.platformName" /></div>
+                <div class="col-md-6"><label class="form-label">Website</label><input class="form-control" [(ngModel)]="general.website" placeholder="https://" /></div>
+                <div class="col-12"><label class="form-label">Description</label><textarea class="form-control" rows="2" [(ngModel)]="general.platformDescription"></textarea></div>
+                <div class="col-md-6">
+                  <label class="form-label">Logo</label>
+                  <div class="d-flex gap-2 align-items-center">
+                    @if (st.platformLogo) { <img [src]="st.platformLogo" class="thumb" alt="logo" /> }
+                    <input type="file" class="form-control" accept="image/*" (change)="uploadLogo($event)" />
+                  </div>
+                </div>
+                <div class="col-md-6"><label class="form-label">Low stock alert below (units)</label><input type="number" min="0" class="form-control" [(ngModel)]="general.lowStockThreshold" /></div>
+                <div class="col-12"><hr class="my-1" /><strong class="small">Support</strong></div>
+                <div class="col-md-6"><label class="form-label">Support email</label><input type="email" class="form-control" [(ngModel)]="general.supportEmail" /></div>
+                <div class="col-md-6"><label class="form-label">Support phone</label><input class="form-control" [(ngModel)]="general.supportPhone" /></div>
+                <div class="col-md-4"><label class="form-label">Hours from</label><input type="time" class="form-control" [(ngModel)]="general.supportHours.startTime" /></div>
+                <div class="col-md-4"><label class="form-label">Hours to</label><input type="time" class="form-control" [(ngModel)]="general.supportHours.endTime" /></div>
+                <div class="col-md-4"><label class="form-label">Timezone</label><input class="form-control" [(ngModel)]="general.supportHours.timezone" /></div>
+              </div>
+              <div class="card-footer text-end"><button class="btn btn-primary" (click)="saveGeneral()">Save</button></div>
+            </div>
+          }
+          @case ('commission') {
+            <div class="card">
+              <div class="card-header"><span class="card-title">Commission & payouts</span></div>
+              <div class="card-body row g-3">
+                <div class="col-md-4"><label class="form-label">Default commission</label><div class="input-group"><input type="number" min="0" max="100" step="0.5" class="form-control" [(ngModel)]="commission.defaultCommission" /><span class="input-group-text">%</span></div>
+                  <div class="form-text">Used for sellers without their own rate.</div></div>
+                <div class="col-md-4"><label class="form-label">Payout frequency</label><select class="form-select" [(ngModel)]="commission.payoutFrequency"><option>Daily</option><option>Weekly</option><option>Monthly</option></select></div>
+                <div class="col-md-4"><label class="form-label">Holding period (days)</label><input type="number" min="0" max="60" class="form-control" [(ngModel)]="commission.payoutDelayDays" />
+                  <div class="form-text">Days after delivery before online money is paid out (return window).</div></div>
+                <div class="col-12">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="cc" [(ngModel)]="commission.chargeCommissionOnCash" />
+                    <label class="form-check-label" for="cc">Charge commission on cash orders (seller bills & cash on delivery)</label>
+                  </div>
+                  <div class="form-text">Cash is collected by the seller directly, so this commission is deducted from their next online payout.</div>
+                </div>
+              </div>
+              <div class="card-footer text-end"><button class="btn btn-primary" (click)="saveCommission()">Save</button></div>
+            </div>
+          }
+          @case ('gst') {
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center"><span class="card-title">GST slabs</span><button class="btn btn-sm btn-outline-primary" (click)="addSlab()"><i class="bi bi-plus-lg"></i> Add slab</button></div>
+              <div class="table-responsive">
+                <table class="table">
+                  <thead><tr><th style="width: 160px">Rate (%)</th><th>Description</th><th></th></tr></thead>
+                  <tbody>
+                    @for (sl of slabs; track $index; let i = $index) {
+                      <tr>
+                        <td><input type="number" min="0" max="100" class="form-control form-control-sm" [(ngModel)]="sl.percentage" /></td>
+                        <td><input class="form-control form-control-sm" [(ngModel)]="sl.description" /></td>
+                        <td class="text-end"><button class="btn btn-sm btn-light text-danger" (click)="slabs.splice(i, 1)" [disabled]="slabs.length <= 1"><i class="bi bi-trash"></i></button></td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <div class="card-body pt-0 form-text">Sellers pick one of these rates for each product. Existing products keep their rate.</div>
+              <div class="card-footer text-end"><button class="btn btn-primary" (click)="saveGst()">Save</button></div>
+            </div>
+          }
+          @case ('delivery') {
+            <div class="card">
+              <div class="card-header"><span class="card-title">Delivery defaults</span></div>
+              <div class="card-body row g-3">
+                <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="de" [(ngModel)]="delivery.enableDelivery" /><label class="form-check-label" for="de">Delivery enabled on the platform</label></div></div>
+                <div class="col-md-6"><label class="form-label">Default delivery charge (₹)</label><input type="number" min="0" class="form-control" [(ngModel)]="delivery.defaultDeliveryCharge" /></div>
+                <div class="col-md-6"><label class="form-label">Free delivery above (₹)</label><input type="number" min="0" class="form-control" [(ngModel)]="delivery.freeDeliveryAbove" /></div>
+                <div class="col-12"><label class="form-label">Delivery partners</label><input class="form-control" [(ngModel)]="partners" placeholder="Comma separated, e.g. Self, Dunzo" /></div>
+                <div class="col-12 form-text">Sellers can override charges in their own settings.</div>
+              </div>
+              <div class="card-footer text-end"><button class="btn btn-primary" (click)="saveDelivery()">Save</button></div>
+            </div>
+          }
+          @case ('payment') {
+            <div class="card">
+              <div class="card-header"><span class="card-title">Payment methods</span></div>
+              <div class="card-body">
+                <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="po" [(ngModel)]="payment.enableOnlinePayment" /><label class="form-check-label" for="po">Online payments (Razorpay – UPI, cards, net banking)</label></div>
+                <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="pc" [(ngModel)]="payment.enableCashPayment" /><label class="form-check-label" for="pc">Cash on delivery (only for sellers who allow it)</label></div>
+                @if (!st.integrations.razorpayConfigured) { <div class="alert alert-warning small mt-3 mb-0">Razorpay keys are not set on the server (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET). Online payments and automatic refunds will not work until they are added.</div> }
+              </div>
+              <div class="card-footer text-end"><button class="btn btn-primary" (click)="savePayment()">Save</button></div>
+            </div>
+          }
+          @case ('notifications') {
+            <div class="card">
+              <div class="card-header"><span class="card-title">Notification channels</span></div>
+              <div class="card-body">
+                @for (n of [['pushNotifications', 'Push notifications (apps)'], ['whatsappNotifications', 'WhatsApp messages'], ['smsNotifications', 'SMS'], ['emailNotifications', 'Email']]; track n[0]) {
+                  <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" [id]="n[0]" [(ngModel)]="notifications[n[0]]" /><label class="form-check-label" [for]="n[0]">{{ n[1] }}</label></div>
+                }
+                <div class="form-text">Gateway credentials (SMS / WhatsApp / SMTP) are configured on the server.</div>
+              </div>
+              <div class="card-footer text-end"><button class="btn btn-primary" (click)="saveNotifications()">Save</button></div>
+            </div>
+          }
+          @case ('security') {
+            <div class="card">
+              <div class="card-header"><span class="card-title">Admin security</span></div>
+              <div class="card-body row g-3">
+                <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="tf" [(ngModel)]="security.enableTwoFactor" /><label class="form-check-label" for="tf">Two-factor authentication required for all admins</label></div></div>
+                <div class="col-md-6"><label class="form-label">Session timeout (minutes of inactivity)</label><input type="number" min="5" max="1440" class="form-control" [(ngModel)]="security.sessionTimeout" /></div>
+                <div class="col-md-6"><label class="form-label">Password expiry (days, 0 = never)</label><input type="number" min="0" max="365" class="form-control" [(ngModel)]="security.passwordExpiryDays" /></div>
+                <div class="col-md-6"><label class="form-label">Max failed login attempts</label><input type="number" min="3" max="20" class="form-control" [(ngModel)]="security.maxLoginAttempts" /></div>
+                <div class="col-md-6"><label class="form-label">Lock account for (minutes)</label><input type="number" min="1" max="1440" class="form-control" [(ngModel)]="security.lockMinutes" /></div>
+                <div class="col-12 form-text">Password policy: at least 8 characters with upper & lower case letters, a number and a symbol.</div>
+              </div>
+              <div class="card-footer text-end"><button class="btn btn-primary" (click)="saveSecurity()">Save</button></div>
+            </div>
+          }
+          @case ('maintenance') {
+            <div class="card">
+              <div class="card-header"><span class="card-title">Maintenance mode</span></div>
+              <div class="card-body">
+                @if (st.maintenanceMode) { <div class="alert alert-warning small"><i class="bi bi-cone-striped me-1"></i>Maintenance mode is ON.</div> }
+                <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" id="mm" [(ngModel)]="maintenance.enabled" /><label class="form-check-label" for="mm">Enable maintenance mode for user & seller apps</label></div>
+                <label class="form-label">Message shown to users</label>
+                <textarea class="form-control" rows="3" [(ngModel)]="maintenance.message" placeholder="हम कुछ सुधार कर रहे हैं, कृपया थोड़ी देर बाद प्रयास करें।"></textarea>
+              </div>
+              <div class="card-footer text-end"><button class="btn btn-primary" (click)="saveMaintenance()">Save</button></div>
+            </div>
+          }
+        }
+      </fieldset>
+    </div>
+  </div>
+}

@@ -1,0 +1,94 @@
+<app-page-header title="Seller payouts" icon="bi-bank" back="/payments" backLabel="Payments" subtitle="Pay sellers their share after commission. Transfers are made from your bank; record the UTR here." />
+
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item"><a class="nav-link" [class.active]="tab() === 'due'" (click)="tab.set('due')">Due for payout @if (due()?.sellers?.length) { <span class="badge text-bg-warning ms-1">{{ due().sellers.length }}</span> }</a></li>
+  <li class="nav-item"><a class="nav-link" [class.active]="tab() === 'history'" (click)="tab.set('history')">Payout history</a></li>
+</ul>
+
+@if (tab() === 'due') {
+  @if (lastResult(); as r) {
+    <div class="alert alert-success small">
+      <i class="bi bi-check-circle me-1"></i>{{ r.sellerCount }} payout(s) created for {{ r.totalAmount | inr }}.
+      @if (r.skipped?.length) { <div class="mt-1 text-danger">Skipped: @for (s of r.skipped; track $index) { <span class="me-2">{{ s.shopName || s.sellerId }} ({{ s.reason }})</span> }</div> }
+      <a class="ms-2" (click)="tab.set('history')" role="button">Go to payout history →</a>
+    </div>
+  }
+  <div class="card">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span class="small text-muted">Online orders delivered more than <strong>{{ due()?.payoutDelayDays }}</strong> days ago. @if (due()?.chargeCommissionOnCash) { Commission on cash orders is deducted. }</span>
+      <span class="fw-semibold">Total due: {{ due()?.totalAmount | inr }}</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th style="width: 32px"><input type="checkbox" class="form-check-input" (change)="toggleAll($any($event.target).checked)" /></th>
+            <th>Seller</th><th class="text-center">Orders</th><th class="text-end">Gross</th><th class="text-end">Commission</th><th class="text-end">Cash comm.</th><th class="text-end">Recoveries</th><th class="text-end">Net payable</th><th>Bank</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (s of due()?.sellers; track s.sellerId) {
+            <tr [class.opacity-50]="s.netAmount <= 0">
+              <td><input type="checkbox" class="form-check-input" [checked]="selected().has(s.sellerId)" (change)="toggle(s.sellerId)" [disabled]="s.netAmount <= 0" /></td>
+              <td><a [routerLink]="['/sellers', s.sellerId]" class="cell-title text-decoration-none">{{ s.seller?.shopName }}</a><div class="cell-sub">{{ s.seller?.ownerName }} · {{ s.seller?.mobileNumber }}</div></td>
+              <td class="text-center">{{ s.onlineOrders }}@if (s.cashOrders) { <span class="cell-sub"> + {{ s.cashOrders }} cash</span> }</td>
+              <td class="text-end">{{ s.grossAmount | inr }}</td>
+              <td class="text-end text-muted">-{{ s.commissionAmount | inr }}</td>
+              <td class="text-end text-muted">@if (s.cashCommission) { -{{ s.cashCommission | inr }} } @else { — }</td>
+              <td class="text-end text-muted">@if (s.pendingDeduction) { -{{ s.pendingDeduction | inr }} } @else { — }</td>
+              <td class="text-end fw-bold">{{ s.netAmount | inr }}</td>
+              <td>@if (s.seller?.hasBankDetails) { <i class="bi bi-check-circle text-success"></i> } @else { <span class="badge text-bg-danger">Missing</span> }</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-state [loading]="dueLoading()" [empty]="!dueLoading() && !due()?.sellers?.length" emptyText="No seller is due for a payout right now" icon="bi-check2-circle" />
+    <ng-container *appCan="'payouts.manage'">
+      @if (due()?.sellers?.length) {
+        <div class="card-footer d-flex flex-wrap gap-2 align-items-end">
+          <div><label class="form-label small mb-1">Payout date</label><input type="date" class="form-control form-control-sm" [(ngModel)]="payoutDate" /></div>
+          <div class="flex-grow-1"><label class="form-label small mb-1">Notes (optional)</label><input class="form-control form-control-sm" [(ngModel)]="notes" placeholder="e.g. Weekly payout batch" /></div>
+          <div class="text-end">
+            <div class="small text-muted">{{ selected().size }} selected</div>
+            <button class="btn btn-primary" (click)="initiate()" [disabled]="busy() || !selected().size">@if (busy()) { <span class="spinner-border spinner-border-sm me-1"></span> }Initiate {{ selectedTotal() | inr }}</button>
+          </div>
+        </div>
+      }
+    </ng-container>
+  </div>
+} @else {
+  <div class="card">
+    <div class="filter-bar">
+      <input class="form-control form-control-sm search" placeholder="Payout ID" [(ngModel)]="list.filters['search']" (keyup.enter)="list.apply()" />
+      <select class="form-select form-select-sm" [(ngModel)]="list.filters['status']" (change)="list.apply()">
+        <option value="">All statuses</option>
+        @for (s of ['Pending','Processing','Completed','Failed','Rejected']; track s) { <option [value]="s">{{ s }}</option> }
+      </select>
+      <input type="date" class="form-control form-control-sm" [(ngModel)]="list.filters['from']" (change)="list.apply()" />
+      <input type="date" class="form-control form-control-sm" [(ngModel)]="list.filters['to']" (change)="list.apply()" />
+      <span class="ms-auto small">Total: <strong>{{ list.extra()['totalAmount'] | inr }}</strong></span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead><tr><th>Payout ID</th><th>Seller</th><th class="text-end">Amount</th><th>Method</th><th>Status</th><th>UTR / Ref</th><th>Initiated</th><th>Completed</th></tr></thead>
+        <tbody>
+          @for (p of list.items(); track p._id) {
+            <tr class="row-link" [routerLink]="['/payments/payouts', p._id]">
+              <td><code class="ref">{{ p.payoutId }}</code></td>
+              <td>{{ p.sellerId?.shopName }}<div class="cell-sub">by {{ p.initiatedBy?.fullName }}</div></td>
+              <td class="text-end fw-semibold">{{ p.amount | inr }}</td>
+              <td>{{ p.payoutMethod }}</td>
+              <td><app-status-badge [status]="p.status" />@if (p.retryCount) { <span class="cell-sub"> retry {{ p.retryCount }}</span> }</td>
+              <td>{{ p.transactionRef || '—' }}</td>
+              <td class="small">{{ p.createdAt | date: 'd MMM y' }}</td>
+              <td class="small">{{ p.completedAt ? (p.completedAt | date: 'd MMM y') : '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-state [loading]="list.loading()" [error]="list.error()" [empty]="!list.loading() && !list.items().length" emptyText="No payouts yet" icon="bi-bank" />
+    <app-pagination [page]="list.page" [pages]="list.pages()" [total]="list.total()" [limit]="list.limit" (pageChange)="list.goTo($event)" (limitChange)="list.setLimit($event)" />
+  </div>
+}

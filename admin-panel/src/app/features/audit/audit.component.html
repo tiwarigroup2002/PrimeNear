@@ -1,0 +1,129 @@
+<app-page-header title="Audit & logs" icon="bi-journal-text" subtitle="Every admin action, logins and system errors" />
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item"><a class="nav-link" [class.active]="tab() === 'audit'" (click)="setTab('audit')"><i class="bi bi-list-check me-1"></i>Audit log</a></li>
+  <li class="nav-item"><a class="nav-link" [class.active]="tab() === 'activity'" (click)="setTab('activity')"><i class="bi bi-activity me-1"></i>Live activity</a></li>
+  <li class="nav-item"><a class="nav-link" [class.active]="tab() === 'logins'" (click)="setTab('logins')"><i class="bi bi-box-arrow-in-right me-1"></i>Login history</a></li>
+  <li class="nav-item"><a class="nav-link" [class.active]="tab() === 'system'" (click)="setTab('system')"><i class="bi bi-bug me-1"></i>System errors</a></li>
+</ul>
+
+@switch (tab()) {
+  @case ('audit') {
+    <div class="card">
+      <div class="filter-bar">
+        <select class="form-select form-select-sm" [(ngModel)]="audit.filters['admin']" (change)="audit.apply()"><option value="">All admins</option>@for (a of admins(); track a._id) { <option [value]="a._id">{{ a.fullName }}</option> }</select>
+        <select class="form-select form-select-sm" [(ngModel)]="audit.filters['entityType']" (change)="audit.apply()"><option value="">All entities</option>@for (e of audit.extra()['entityTypes'] || []; track e) { <option>{{ e }}</option> }</select>
+        <select class="form-select form-select-sm" [(ngModel)]="audit.filters['action']" (change)="audit.apply()"><option value="">All actions</option>@for (e of audit.extra()['actions'] || []; track e) { <option>{{ e }}</option> }</select>
+        <input type="date" class="form-control form-control-sm" [(ngModel)]="audit.filters['from']" (change)="audit.apply()" />
+        <input type="date" class="form-control form-control-sm" [(ngModel)]="audit.filters['to']" (change)="audit.apply()" />
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover table-sm">
+          <thead><tr><th>Time</th><th>Admin</th><th>Action</th><th>Entity</th><th>Details</th><th>IP</th><th>Status</th></tr></thead>
+          <tbody>
+            @for (l of audit.items(); track l._id) {
+              <tr class="row-link" (click)="open(l)">
+                <td class="small text-nowrap">{{ l.createdAt | date: 'd MMM y, h:mm:ss a' }}</td>
+                <td>{{ l.adminId?.fullName || '—' }}<div class="cell-sub">{{ l.adminId?.role }}</div></td>
+                <td><span class="badge bg-{{ actionColor(l.action) }}-subtle text-{{ actionColor(l.action) }}-emphasis">{{ l.action }}</span></td>
+                <td>{{ l.entityType }}@if (l.entityId) { <div class="cell-sub">{{ l.entityId }}</div> }</td>
+                <td class="small text-truncate" style="max-width: 280px">{{ l.details || '—' }}</td>
+                <td class="small">{{ l.ipAddress }}</td>
+                <td><app-status-badge [status]="l.status" /></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-state [loading]="audit.loading()" [error]="audit.error()" [empty]="!audit.loading() && !audit.items().length" emptyText="No activity yet" />
+      <app-pagination [page]="audit.page" [pages]="audit.pages()" [total]="audit.total()" [limit]="audit.limit" (pageChange)="audit.goTo($event)" (limitChange)="audit.setLimit($event)" />
+    </div>
+  }
+  @case ('activity') {
+    <div class="card">
+      <div class="card-header d-flex justify-content-between"><span class="card-title"><span class="spinner-grow spinner-grow-sm text-success me-2"></span>Live admin activity</span><span class="small text-muted">refreshes every 10s</span></div>
+      <ul class="list-group list-group-flush">
+        @for (l of feed(); track l._id) {
+          <li class="list-group-item d-flex gap-3 align-items-start">
+            <span class="avatar avatar-initials flex-shrink-0" style="width: 32px; height: 32px">{{ (l.adminId?.fullName || '?').slice(0, 1) }}</span>
+            <div class="flex-grow-1 small">
+              <strong>{{ l.adminId?.fullName || 'Unknown' }}</strong>
+              <span class="badge bg-{{ actionColor(l.action) }}-subtle text-{{ actionColor(l.action) }}-emphasis mx-1">{{ l.action }}</span>
+              {{ l.entityType }} @if (l.details) { — {{ l.details }} }
+              <div class="text-muted">{{ l.createdAt | timeAgo }} · {{ l.ipAddress }}</div>
+            </div>
+          </li>
+        } @empty { <li class="list-group-item text-center text-muted py-4">No recent activity</li> }
+      </ul>
+    </div>
+  }
+  @case ('logins') {
+    <div class="card">
+      <div class="filter-bar">
+        <select class="form-select form-select-sm" [(ngModel)]="logins.filters['admin']" (change)="logins.apply()"><option value="">All admins</option>@for (a of admins(); track a._id) { <option [value]="a._id">{{ a.fullName }}</option> }</select>
+        <select class="form-select form-select-sm" [(ngModel)]="logins.filters['status']" (change)="logins.apply()"><option value="">Any result</option><option>Success</option><option>Failed</option><option>Locked</option></select>
+        <input type="date" class="form-control form-control-sm" [(ngModel)]="logins.filters['from']" (change)="logins.apply()" />
+        <input type="date" class="form-control form-control-sm" [(ngModel)]="logins.filters['to']" (change)="logins.apply()" />
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover">
+          <thead><tr><th>Login time</th><th>Admin / identifier</th><th>Result</th><th>Reason</th><th>Logout</th><th>IP</th><th>Device</th></tr></thead>
+          <tbody>
+            @for (l of logins.items(); track l._id) {
+              <tr>
+                <td class="small text-nowrap">{{ l.loginTime | date: 'd MMM y, h:mm a' }}</td>
+                <td>{{ l.principalId?.fullName || '—' }}<div class="cell-sub">{{ l.identifier || l.principalId?.email }}</div></td>
+                <td><app-status-badge [status]="l.status" /></td>
+                <td class="small">{{ l.reason || '' }}</td>
+                <td class="small">{{ l.logoutTime ? (l.logoutTime | date: 'h:mm a') : '—' }}</td>
+                <td class="small">{{ l.ipAddress }}</td>
+                <td class="small text-truncate" style="max-width: 260px" [title]="l.userAgent">{{ l.userAgent }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-state [loading]="logins.loading()" [error]="logins.error()" [empty]="!logins.loading() && !logins.items().length" />
+      <app-pagination [page]="logins.page" [pages]="logins.pages()" [total]="logins.total()" [limit]="logins.limit" (pageChange)="logins.goTo($event)" (limitChange)="logins.setLimit($event)" />
+    </div>
+  }
+  @case ('system') {
+    <div class="card">
+      <div class="filter-bar">
+        <input class="form-control form-control-sm search" placeholder="Search message" [(ngModel)]="system.filters['search']" (keyup.enter)="system.apply()" />
+        <select class="form-select form-select-sm" [(ngModel)]="system.filters['level']" (change)="system.apply()"><option value="">All levels</option><option>Info</option><option>Warning</option><option>Error</option><option>Critical</option></select>
+        <span class="ms-auto small text-danger">{{ system.extra()['errorCount'] ?? 0 }} errors</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover">
+          <thead><tr><th>Time</th><th>Level</th><th>Source</th><th>Message</th></tr></thead>
+          <tbody>
+            @for (l of system.items(); track l._id) {
+              <tr class="row-link" (click)="detail.set(l)">
+                <td class="small text-nowrap">{{ l.timestamp | date: 'd MMM, h:mm:ss a' }}</td>
+                <td><span class="badge" [class.text-bg-danger]="l.level === 'Error' || l.level === 'Critical'" [class.text-bg-warning]="l.level === 'Warning'" [class.text-bg-info]="l.level === 'Info'">{{ l.level }}</span></td>
+                <td class="small">{{ l.source }}</td>
+                <td class="small">{{ l.message }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-state [loading]="system.loading()" [error]="system.error()" [empty]="!system.loading() && !system.items().length" emptyText="No system errors 🎉" icon="bi-emoji-smile" />
+      <app-pagination [page]="system.page" [pages]="system.pages()" [total]="system.total()" [limit]="system.limit" (pageChange)="system.goTo($event)" (limitChange)="system.setLimit($event)" />
+    </div>
+  }
+}
+
+<app-modal [open]="!!detail()" title="Log details" size="lg" (closed)="detail.set(null)">
+  @if (detail(); as d) {
+    @if (d.oldValue || d.newValue) {
+      <div class="row g-2">
+        <div class="col-md-6"><div class="small fw-semibold mb-1">Before</div><pre class="bg-body-tertiary p-2 rounded small" style="max-height: 400px">{{ d.oldValue | json }}</pre></div>
+        <div class="col-md-6"><div class="small fw-semibold mb-1">After</div><pre class="bg-body-tertiary p-2 rounded small" style="max-height: 400px">{{ d.newValue | json }}</pre></div>
+      </div>
+    } @else {
+      <pre class="bg-body-tertiary p-2 rounded small" style="max-height: 500px; white-space: pre-wrap">{{ d | json }}</pre>
+    }
+    @if (d.userAgent) { <div class="small text-muted mt-2">{{ d.userAgent }}</div> }
+  }
+</app-modal>

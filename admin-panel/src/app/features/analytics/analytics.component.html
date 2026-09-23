@@ -1,0 +1,146 @@
+<app-page-header title="Analytics" icon="bi-bar-chart-line" subtitle="Platform performance insights">
+  <select class="form-select form-select-sm w-auto" [(ngModel)]="period" (change)="period !== 'custom' && load()">
+    <option value="today">Today</option><option value="week">Last 7 days</option><option value="month">Last 30 days</option><option value="quarter">Last 90 days</option><option value="year">Last 12 months</option><option value="all">All time</option><option value="custom">Custom range</option>
+  </select>
+  @if (period === 'custom') {
+    <input type="date" class="form-control form-control-sm w-auto" [(ngModel)]="from" [max]="to" />
+    <input type="date" class="form-control form-control-sm w-auto" [(ngModel)]="to" [min]="from" />
+    <button class="btn btn-sm btn-primary" (click)="load()">Apply</button>
+  }
+  <button class="btn btn-sm btn-outline-secondary" (click)="export()" [disabled]="!series().length"><i class="bi bi-download me-1"></i>CSV</button>
+  <a routerLink="/reports" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-bar-graph me-1"></i>Reports</a>
+</app-page-header>
+
+<ul class="nav nav-tabs mb-3">
+  @for (t of tabs; track t[0]) {
+    <li class="nav-item"><a class="nav-link" [class.active]="tab() === t[0]" (click)="setTab(t[0])"><i class="bi {{ t[2] }} me-1"></i>{{ t[1] }}</a></li>
+  }
+</ul>
+
+<app-state [loading]="loading()" [error]="error()" />
+
+@if (data(); as d) {
+  @switch (tab()) {
+    @case ('revenue') {
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-lg-3"><app-stat-card label="Revenue" [value]="d.totalRevenue | inr: 0" icon="bi-currency-rupee" color="primary" /></div>
+        <div class="col-6 col-lg-3"><app-stat-card label="Commission" [value]="d.totalCommission | inr: 0" icon="bi-percent" color="success" /></div>
+        <div class="col-6 col-lg-3"><app-stat-card label="Orders" [value]="d.totalOrders | number" icon="bi-bag" color="info" /></div>
+        <div class="col-6 col-lg-3"><app-stat-card label="Avg. order value" [value]="d.averageOrderValue | inr: 0" icon="bi-graph-up" color="warning" /></div>
+      </div>
+      <div class="card mb-3"><div class="card-header"><span class="card-title">Revenue & commission trend</span></div>
+        <div class="card-body"><app-chart type="line" [labels]="labels()" [datasets]="[ds('Revenue', 'revenue'), ds('Commission', 'commission')]" [currency]="true" [height]="300" /></div></div>
+      <div class="row g-3">
+        <div class="col-lg-4"><div class="card h-100"><div class="card-header"><span class="card-title">By payment method</span></div>
+          <div class="card-body"><app-chart type="doughnut" [labels]="names(entries(d.revenueByPaymentMethod), '0')" [datasets]="pie(d.revenueByPaymentMethod, 'amount')" [currency]="true" [height]="240" /></div></div></div>
+        <div class="col-lg-4"><div class="card h-100"><div class="card-header"><span class="card-title">By category</span></div>
+          <div class="card-body"><app-chart type="pie" [labels]="names(d.revenueByCategory, 'category')" [datasets]="pieFromList(d.revenueByCategory, 'amount')" [currency]="true" [height]="240" /></div></div></div>
+        <div class="col-lg-4"><div class="card h-100"><div class="card-header"><span class="card-title">Top sellers</span></div>
+          <div class="card-body"><app-chart type="bar" [horizontal]="true" [labels]="names(d.topSellers, 'name')" [datasets]="pieFromList(d.topSellers, 'revenue')" [currency]="true" [legend]="false" [height]="240" /></div></div></div>
+      </div>
+    }
+
+    @case ('orders') {
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-lg"><app-stat-card label="Total orders" [value]="d.totalOrders | number" icon="bi-bag" color="primary" /></div>
+        <div class="col-6 col-lg"><app-stat-card label="Delivered" [value]="d.successfulOrders | number" icon="bi-check2-circle" color="success" /></div>
+        <div class="col-6 col-lg"><app-stat-card label="In progress" [value]="d.pendingOrders | number" icon="bi-hourglass-split" color="info" /></div>
+        <div class="col-6 col-lg"><app-stat-card label="Cancelled" [value]="d.cancelledOrders | number" icon="bi-x-circle" color="danger" [hint]="d.totalOrders ? ((d.cancelledOrders / d.totalOrders) * 100 | number: '1.0-1') + '% cancel rate' : ''" /></div>
+        <div class="col-6 col-lg"><app-stat-card label="Returned" [value]="d.returnedOrders | number" icon="bi-arrow-return-left" color="secondary" /></div>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-lg-8"><div class="card h-100"><div class="card-header"><span class="card-title">Orders per day · avg. order value {{ d.averageOrderValue | inr: 0 }}</span></div>
+          <div class="card-body"><app-chart type="bar" [labels]="labels()" [datasets]="[ds('Orders', 'count')]" [legend]="false" [height]="300" /></div></div></div>
+        <div class="col-lg-4"><div class="card h-100"><div class="card-header"><span class="card-title">Status distribution</span></div>
+          <div class="card-body"><app-chart type="doughnut" [labels]="names(entries(d.orderStatusBreakdown), '0')" [datasets]="pie(d.orderStatusBreakdown)" [height]="300" /></div></div></div>
+      </div>
+      <div class="row g-3">
+        <div class="col-lg-8"><div class="card"><div class="card-header"><span class="card-title">Orders by seller (top 10)</span></div>
+          <div class="card-body"><app-chart type="bar" [labels]="names(d.ordersBySeller, 'name')" [datasets]="pieFromList(d.ordersBySeller, 'count')" [legend]="false" [height]="260" /></div></div></div>
+        <div class="col-lg-4"><div class="card"><div class="card-header"><span class="card-title">Source</span></div>
+          <div class="card-body"><app-chart type="pie" [labels]="names(entries(d.orderSourceBreakdown), '0')" [datasets]="pie(d.orderSourceBreakdown)" [height]="260" /></div></div></div>
+      </div>
+    }
+
+    @case ('users') {
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-lg"><app-stat-card label="Total users" [value]="d.totalUsers | number" icon="bi-people" color="primary" /></div>
+        <div class="col-6 col-lg"><app-stat-card label="New in period" [value]="d.newUsers | number" icon="bi-person-plus" color="success" /></div>
+        <div class="col-6 col-lg"><app-stat-card label="Active (ordered)" [value]="d.activeUsers | number" icon="bi-activity" color="info" /></div>
+        <div class="col-6 col-lg"><app-stat-card label="Linked to a seller" [value]="d.linkedUsers | number" icon="bi-link-45deg" color="warning" /></div>
+        <div class="col-6 col-lg"><app-stat-card label="Repeat buyers" [value]="d.userRetention + '%'" icon="bi-arrow-repeat" color="secondary" [hint]="d.repeatBuyers + ' of ' + d.buyers + ' buyers'" /></div>
+      </div>
+      <div class="row g-3">
+        <div class="col-lg-8"><div class="card h-100"><div class="card-header"><span class="card-title">User growth</span></div>
+          <div class="card-body"><app-chart type="line" [labels]="labels()" [datasets]="[ds('Total users', 'total'), ds('New users', 'count', { type: 'bar' })]" [height]="300" /></div></div></div>
+        <div class="col-lg-4"><div class="card h-100"><div class="card-header"><span class="card-title">Users by tahsil</span></div>
+          <div class="card-body"><app-chart type="doughnut" [labels]="names(d.usersByTahsil, 'tahsil')" [datasets]="pieFromList(d.usersByTahsil, 'count')" [height]="300" /></div></div></div>
+      </div>
+    }
+
+    @case ('sellers') {
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-lg"><app-stat-card label="Total sellers" [value]="d.totalSellers" icon="bi-shop" color="primary" /></div>
+        <div class="col-6 col-lg"><app-stat-card label="Active" [value]="d.activeSellers" icon="bi-check-circle" color="success" [hint]="d.blockedSellers + ' blocked'" /></div>
+        <div class="col-6 col-lg"><app-stat-card label="New in period" [value]="d.newSellersThisPeriod" icon="bi-plus-circle" color="info" /></div>
+        <div class="col-6 col-lg"><app-stat-card label="Seller revenue" [value]="d.totalSellerRevenue | inr: 0" icon="bi-currency-rupee" color="warning" /></div>
+        <div class="col-6 col-lg"><app-stat-card label="Avg. per seller" [value]="d.averageSellerRevenue | inr: 0" icon="bi-graph-up" color="secondary" [hint]="d.sellersWithSales + ' sellers with sales'" /></div>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-lg-7"><div class="card h-100"><div class="card-header"><span class="card-title">Revenue per seller (top 10)</span></div>
+          <div class="card-body"><app-chart type="bar" [horizontal]="true" [labels]="names(d.topSellers, 'name')" [datasets]="pieFromList(d.topSellers, 'revenue')" [currency]="true" [legend]="false" [height]="300" /></div></div></div>
+        <div class="col-lg-5"><div class="card h-100"><div class="card-header"><span class="card-title">Seller growth</span></div>
+          <div class="card-body"><app-chart type="line" [labels]="labels()" [datasets]="[ds('Total sellers', 'total')]" [legend]="false" [height]="300" /></div></div></div>
+      </div>
+      <div class="card"><div class="card-header"><span class="card-title">Seller performance ranking</span></div>
+        <div class="table-responsive"><table class="table table-hover">
+          <thead><tr><th>#</th><th>Seller</th><th class="text-end">Orders</th><th class="text-end">Revenue</th><th class="text-end">Avg. order</th><th class="text-end">Customers</th><th>Rating</th></tr></thead>
+          <tbody>
+            @for (s of d.sellerPerformance; track s.sellerId; let i = $index) {
+              <tr class="row-link" [routerLink]="['/sellers', s.sellerId]"><td>{{ i + 1 }}</td><td class="fw-semibold">{{ s.name }}</td><td class="text-end">{{ s.orders }}</td><td class="text-end">{{ s.revenue | inr: 0 }}</td><td class="text-end">{{ s.averageOrderValue | inr: 0 }}</td><td class="text-end">{{ s.customers }}</td><td>⭐ {{ s.rating | number: '1.1-1' }}</td></tr>
+            } @empty { <tr><td colspan="7" class="text-center text-muted py-3">No sales in this period</td></tr> }
+          </tbody>
+        </table></div></div>
+    }
+
+    @case ('products') {
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-lg-3"><app-stat-card label="Total products" [value]="d.totalProducts" icon="bi-box" color="primary" /></div>
+        <div class="col-6 col-lg-3"><app-stat-card label="Active" [value]="d.activeProducts" icon="bi-check-circle" color="success" /></div>
+        <div class="col-6 col-lg-3"><app-stat-card label="Low stock" [value]="d.lowStockProducts" icon="bi-exclamation-triangle" color="warning" link="/products?status=lowStock" /></div>
+        <div class="col-6 col-lg-3"><app-stat-card label="Out of stock" [value]="d.outOfStockProducts" icon="bi-x-octagon" color="danger" link="/products?status=outOfStock" /></div>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-lg-6"><div class="card h-100"><div class="card-header"><span class="card-title">Products by category</span></div>
+          <div class="card-body"><app-chart type="doughnut" [labels]="names(d.byCategory, 'category')" [datasets]="pieFromList(d.byCategory, 'count')" [height]="260" /></div></div></div>
+        <div class="col-lg-6"><div class="card h-100"><div class="card-header"><span class="card-title">Products by seller</span></div>
+          <div class="card-body"><app-chart type="bar" [labels]="names(d.bySeller, 'seller')" [datasets]="pieFromList(d.bySeller, 'count')" [legend]="false" [height]="260" /></div></div></div>
+      </div>
+      <div class="card"><div class="card-header"><span class="card-title">Top selling products (period)</span></div>
+        <div class="table-responsive"><table class="table table-hover">
+          <thead><tr><th>#</th><th>Product</th><th>Seller</th><th class="text-end">Units</th><th class="text-end">Revenue</th><th>Rating</th></tr></thead>
+          <tbody>
+            @for (p of d.topProducts; track p.productId; let i = $index) {
+              <tr class="row-link" [routerLink]="['/products', p.productId]"><td>{{ i + 1 }}</td><td class="fw-semibold">{{ p.name }}</td><td>{{ p.seller }}</td><td class="text-end">{{ p.sales }}</td><td class="text-end">{{ p.revenue | inr: 0 }}</td><td>@if (p.rating) { ⭐ {{ p.rating | number: '1.1-1' }} }</td></tr>
+            } @empty { <tr><td colspan="6" class="text-center text-muted py-3">No sales in this period</td></tr> }
+          </tbody>
+        </table></div></div>
+    }
+
+    @case ('payments') {
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-lg"><app-stat-card label="Collected" [value]="d.totalAmount | inr: 0" icon="bi-cash-stack" color="primary" [hint]="d.totalTransactions + ' transactions'" /></div>
+        <div class="col-6 col-lg"><app-stat-card label="Online" [value]="d.onlinePayments.amount | inr: 0" icon="bi-phone" color="success" [hint]="d.onlinePayments.count + ' payments'" /></div>
+        <div class="col-6 col-lg"><app-stat-card label="Cash" [value]="d.cashPayments.amount | inr: 0" icon="bi-cash" color="info" [hint]="d.cashPayments.count + ' payments'" /></div>
+        <div class="col-6 col-lg"><app-stat-card label="Failed" [value]="d.failedPayments.count" icon="bi-x-circle" color="danger" [hint]="(d.failedPayments.amount | inr: 0) + ' attempted'" /></div>
+        <div class="col-6 col-lg"><app-stat-card label="Refunds" [value]="d.refunds.amount | inr: 0" icon="bi-arrow-counterclockwise" color="warning" [hint]="d.refunds.count + ' refunds'" /></div>
+      </div>
+      <div class="row g-3">
+        <div class="col-lg-8"><div class="card h-100"><div class="card-header"><span class="card-title">Payments vs refunds</span></div>
+          <div class="card-body"><app-chart type="bar" [labels]="labels()" [datasets]="[ds('Payments', 'payments'), ds('Refunds', 'refunds', { backgroundColor: '#dc2626cc' })]" [currency]="true" [height]="300" /></div></div></div>
+        <div class="col-lg-4"><div class="card h-100"><div class="card-header"><span class="card-title">Payment methods</span></div>
+          <div class="card-body"><app-chart type="doughnut" [labels]="names(d.paymentMethodBreakdown, 'method')" [datasets]="pieFromList(d.paymentMethodBreakdown, 'amount')" [currency]="true" [height]="300" /></div></div></div>
+      </div>
+    }
+  }
+}

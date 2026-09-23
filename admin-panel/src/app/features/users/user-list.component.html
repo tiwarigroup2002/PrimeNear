@@ -1,0 +1,79 @@
+<app-page-header title="Users" icon="bi-people" [subtitle]="list.total() + ' customers'">
+  <a *appCan="'users.manage'" routerLink="/users/bulk-link" class="btn btn-outline-secondary btn-sm"><i class="bi bi-upload me-1"></i>Bulk link (CSV)</a>
+  <button *appCan="'users.manage'" class="btn btn-primary btn-sm" (click)="openAdd()"><i class="bi bi-person-plus me-1"></i>Add & link user</button>
+</app-page-header>
+
+<div class="card">
+  <div class="filter-bar">
+    <div class="input-group input-group-sm search">
+      <span class="input-group-text"><i class="bi bi-search"></i></span>
+      <input class="form-control" placeholder="Search name, mobile, email..." [(ngModel)]="list.filters['search']" (keyup.enter)="list.apply()" />
+    </div>
+    <select class="form-select form-select-sm" [(ngModel)]="list.filters['status']" (change)="list.apply()">
+      <option value="">All statuses</option><option value="Active">Active</option><option value="Blocked">Blocked</option>
+    </select>
+    <select class="form-select form-select-sm" [(ngModel)]="list.filters['tahsilId']" (change)="list.apply()">
+      <option value="">All locations</option>
+      @for (t of tahsils(); track t._id) { <option [value]="t._id">{{ t.name }}</option> }
+    </select>
+    <select class="form-select form-select-sm" [(ngModel)]="list.filters['linked']" (change)="list.apply()">
+      <option value="">Any link</option><option value="none">Not linked to any seller</option>
+    </select>
+    <div style="min-width: 220px"><app-entity-select kind="seller" placeholder="Filter by seller..." [small]="true" (selected)="filterSeller($event)" /></div>
+    <button class="btn btn-sm btn-primary" (click)="list.apply()">Search</button>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>User</th><th>Mobile</th><th>Location</th><th class="text-end">Linked sellers</th><th class="text-end">Orders</th><th class="text-end">Spent</th><th>Last purchase</th><th>Status</th><th>Joined</th><th class="text-end">Actions</th></tr></thead>
+      <tbody>
+        @for (u of list.items(); track u._id) {
+          <tr>
+            <td><a [routerLink]="['/users', u._id]" class="text-decoration-none text-body"><span class="cell-title d-block">{{ u.name || '—' }}</span><span class="cell-sub">{{ u.email }}</span></a></td>
+            <td>{{ u.mobileNumber }}</td>
+            <td>{{ u.tahsilId?.name || '—' }}</td>
+            <td class="text-end">@if (u.linkedSellersCount) { {{ u.linkedSellersCount }} } @else { <span class="badge text-bg-warning">None</span> }</td>
+            <td class="text-end">{{ u.totalOrders | number }}</td>
+            <td class="text-end">{{ u.totalSpent | inr: 0 }}</td>
+            <td class="small">{{ u.lastPurchase ? (u.lastPurchase | date: 'd MMM y') : '—' }}</td>
+            <td><app-status-badge [status]="u.status" /></td>
+            <td class="small">{{ u.createdAt | date: 'd MMM y' }}</td>
+            <td class="text-end text-nowrap">
+              <a [routerLink]="['/users', u._id]" class="btn btn-sm btn-light" title="View"><i class="bi bi-eye"></i></a>
+              <ng-container *appCan="'users.manage'">
+                @if (u.status === 'Active') { <button class="btn btn-sm btn-light text-warning" title="Block" (click)="block(u)"><i class="bi bi-slash-circle"></i></button> }
+                @else { <button class="btn btn-sm btn-light text-success" title="Unblock" (click)="unblock(u)"><i class="bi bi-check-circle"></i></button> }
+              </ng-container>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  <app-state [loading]="list.loading()" [error]="list.error()" [empty]="!list.loading() && !list.items().length" emptyText="No users found" icon="bi-people" />
+  <app-pagination [page]="list.page" [pages]="list.pages()" [total]="list.total()" [limit]="list.limit" (pageChange)="list.goTo($event)" (limitChange)="list.setLimit($event)" />
+</div>
+
+<app-modal [open]="addOpen()" title="Add user & link to seller" (closed)="addOpen.set(false)">
+  <p class="small text-muted">Users can only use the user app after they are linked to at least one seller. If the mobile number already exists, the existing user is linked.</p>
+  @if (formError()) { <div class="alert alert-danger small py-2">{{ formError() }}</div> }
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label required">Mobile number</label>
+      <div class="input-group"><span class="input-group-text">+91</span><input class="form-control" [(ngModel)]="form.mobileNumber" maxlength="10" inputmode="numeric" /></div>
+    </div>
+    <div class="col-md-6"><label class="form-label">Name</label><input class="form-control" [(ngModel)]="form.name" /></div>
+    <div class="col-md-6"><label class="form-label">Email</label><input class="form-control" type="email" [(ngModel)]="form.email" /></div>
+    <div class="col-md-6">
+      <label class="form-label">Customer type</label>
+      <select class="form-select" [(ngModel)]="form.customerType"><option>Retail</option><option>Wholesale</option></select>
+    </div>
+    <div class="col-12">
+      <label class="form-label required">Seller</label>
+      <app-entity-select kind="seller" placeholder="Search shop name..." (selected)="form.sellerId = $event?._id || ''" />
+    </div>
+  </div>
+  <div modal-footer class="modal-footer">
+    <button class="btn btn-light" (click)="addOpen.set(false)">Cancel</button>
+    <button class="btn btn-primary" (click)="save()" [disabled]="saving()">@if (saving()) { <span class="spinner-border spinner-border-sm me-1"></span> }Add & link</button>
+  </div>
+</app-modal>

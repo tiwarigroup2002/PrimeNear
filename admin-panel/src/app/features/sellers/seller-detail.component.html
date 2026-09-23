@@ -1,0 +1,247 @@
+<app-page-header title="Seller details" back="/sellers" backLabel="All sellers" />
+<app-state [loading]="loading()" [error]="error()" />
+
+@if (data(); as d) {
+  <div class="card mb-3">
+    <div class="card-body d-flex flex-wrap gap-3 align-items-center">
+      @if (d.seller.shopImage) { <img [src]="d.seller.shopImage" class="thumb thumb-lg" alt="" /> } @else { <span class="thumb thumb-lg"><i class="bi bi-shop"></i></span> }
+      <div class="flex-grow-1 min-w-0">
+        <h2 class="h4 mb-1">{{ d.seller.shopName }} <app-status-badge [status]="d.seller.status" /></h2>
+        <div class="text-muted small">
+          <i class="bi bi-person me-1"></i>{{ d.seller.ownerName }}
+          <span class="mx-2">·</span><i class="bi bi-telephone me-1"></i><a [href]="'tel:' + d.seller.mobileNumber">{{ d.seller.mobileNumber }}</a>
+          <span class="mx-2">·</span><i class="bi bi-geo-alt me-1"></i>{{ d.seller.tahsilId?.name }}, {{ d.seller.tahsilId?.districtId?.name }}
+          <span class="mx-2">·</span>Joined {{ d.seller.createdAt | date: 'd MMM y' }}
+        </div>
+        @if (d.seller.status === 'Blocked') { <div class="alert alert-danger py-1 px-2 small mt-2 mb-0 w-fit"><i class="bi bi-slash-circle me-1"></i>Blocked: {{ d.seller.blockReason }}</div> }
+      </div>
+      @if (d.seller.status !== 'Deleted') {
+        <div class="d-flex flex-wrap gap-2">
+          <a class="btn btn-sm btn-outline-success" [href]="'https://wa.me/91' + d.seller.mobileNumber" target="_blank" rel="noopener"><i class="bi bi-whatsapp me-1"></i>WhatsApp</a>
+          <a *appCan="'sellers.manage'" [routerLink]="['/sellers', id, 'edit']" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil me-1"></i>Edit</a>
+          <button *appCan="'sellers.commission'" class="btn btn-sm btn-outline-secondary" (click)="openCommission()"><i class="bi bi-percent me-1"></i>Commission</button>
+          <ng-container *appCan="'sellers.manage'">
+            @if (d.seller.status === 'Active') { <button class="btn btn-sm btn-outline-warning" (click)="block()"><i class="bi bi-slash-circle me-1"></i>Block</button> }
+            @else { <button class="btn btn-sm btn-outline-success" (click)="unblock()"><i class="bi bi-check-circle me-1"></i>Unblock</button> }
+          </ng-container>
+          <button *appCan="'sellers.delete'" class="btn btn-sm btn-outline-danger" (click)="remove()"><i class="bi bi-trash"></i></button>
+        </div>
+      }
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3"><app-stat-card label="Total orders" [value]="d.analytics.totalOrders | number" icon="bi-bag-check" color="primary" /></div>
+    <div class="col-6 col-lg-3"><app-stat-card label="Total revenue" [value]="d.analytics.totalRevenue | inr: 0" icon="bi-currency-rupee" color="success" [hint]="'Avg ' + (d.analytics.averageOrderValue | inr: 0)" /></div>
+    <div class="col-6 col-lg-3"><app-stat-card label="Customers" [value]="d.analytics.totalCustomers | number" icon="bi-people" color="info" /></div>
+    <div class="col-6 col-lg-3"><app-stat-card label="Rating" [value]="d.analytics.ratingCount ? (d.analytics.rating | number: '1.1-1') + ' ⭐' : '—'" icon="bi-star" color="warning" [hint]="d.analytics.ratingCount + ' ratings'" /></div>
+  </div>
+
+  <ul class="nav nav-tabs mb-3">
+    @for (t of [['overview','Overview'],['products','Products'],['orders','Orders'],['customers','Customers'],['payments','Payments'],['performance','Performance']]; track t[0]) {
+      @if (t[0] !== 'payments' || auth.can('payments.view')) {
+        <li class="nav-item"><a class="nav-link" [class.active]="tab() === t[0]" (click)="setTab($any(t[0]))">{{ t[1] }}</a></li>
+      }
+    }
+  </ul>
+
+  @switch (tab()) {
+    @case ('overview') {
+      <div class="row g-3">
+        <div class="col-lg-6">
+          <div class="card h-100">
+            <div class="card-header"><span class="card-title">Shop information</span></div>
+            <div class="card-body">
+              <dl class="dl-grid">
+                <dt>Shop name</dt><dd>{{ d.seller.shopName }}</dd>
+                <dt>Owner</dt><dd>{{ d.seller.ownerName }}</dd>
+                <dt>Mobile</dt><dd>{{ d.seller.mobileNumber }}</dd>
+                <dt>Email</dt><dd>{{ d.seller.email || '—' }}</dd>
+                <dt>Address</dt><dd>{{ d.seller.shopAddress }}</dd>
+                <dt>Tahsil</dt><dd>{{ d.seller.tahsilId?.name }}</dd>
+                <dt>Sells in</dt><dd>@for (x of d.seller.districtIds; track x._id) { <span class="badge text-bg-light border me-1">{{ x.name }}</span> }</dd>
+                <dt>GSTIN</dt><dd>{{ d.seller.gstNumber || '—' }}</dd>
+                <dt>Commission</dt><dd>{{ d.seller.effectiveCommissionRate }}% @if (d.seller.commissionRate === null) { <span class="text-muted small">(platform default)</span> }</dd>
+                <dt>Products</dt><dd>{{ d.analytics.products.total }} total · {{ d.analytics.products.active }} active · {{ d.analytics.products.outOfStock }} out of stock</dd>
+                <dt>Delivery</dt><dd>@if (d.seller.settings?.enableDelivery) { Yes · ₹{{ d.seller.settings.deliveryCharge }} (free above ₹{{ d.seller.settings.freeDeliveryAbove }}) } @else { Pickup only }</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="card mb-3">
+            <div class="card-header"><span class="card-title">Bank / payout details</span></div>
+            <div class="card-body">
+              <dl class="dl-grid">
+                <dt>Account holder</dt><dd>{{ d.seller.bankDetails?.accountHolder || '—' }}</dd>
+                <dt>Account number</dt><dd><code class="ref">{{ d.seller.bankDetails?.accountNumber || '—' }}</code></dd>
+                <dt>IFSC</dt><dd>{{ d.seller.bankDetails?.ifscCode || '—' }}</dd>
+                <dt>Bank</dt><dd>{{ d.seller.bankDetails?.bankName || '—' }}</dd>
+                <dt>UPI</dt><dd>{{ d.seller.upiId || '—' }}</dd>
+              </dl>
+              @if (!d.seller.bankDetails?.accountNumber && !d.seller.upiId) { <div class="alert alert-warning small py-2 mb-0 mt-2">No bank account or UPI – payouts cannot be made.</div> }
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">Earnings</span></div>
+            <div class="card-body">
+              <dl class="dl-grid">
+                <dt>Total sales</dt><dd>{{ d.earnings.totalEarnings | inr }}</dd>
+                <dt>Commission</dt><dd>{{ d.earnings.totalCommission | inr }}</dd>
+                <dt>Paid out</dt><dd class="text-success">{{ d.earnings.totalPaid | inr }}</dd>
+                <dt>Payout in progress</dt><dd>{{ d.earnings.totalPending | inr }}</dd>
+                <dt>Due now</dt><dd class="fw-semibold">{{ d.earnings.pendingAmount | inr }}</dd>
+                <dt>On hold (return window)</dt><dd>{{ d.earnings.onHoldAmount | inr }}</dd>
+                @if (d.earnings.pendingDeduction) { <dt>To recover</dt><dd class="text-danger">{{ d.earnings.pendingDeduction | inr }}</dd> }
+              </dl>
+            </div>
+          </div>
+        </div>
+        <div class="col-12">
+          <div class="card">
+            <div class="card-header"><span class="card-title">Top products</span></div>
+            <div class="table-responsive">
+              <table class="table">
+                <thead><tr><th>Product</th><th class="text-end">Units sold</th><th class="text-end">Revenue</th></tr></thead>
+                <tbody>
+                  @for (p of d.analytics.topProducts; track p._id) { <tr><td>{{ p.name }}</td><td class="text-end">{{ p.quantity }}</td><td class="text-end">{{ p.revenue | inr }}</td></tr> }
+                  @empty { <tr><td colspan="3" class="text-center text-muted py-3">No sales yet</td></tr> }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    @case ('performance') {
+      <div class="card">
+        <div class="card-header"><span class="card-title">Monthly sales & commission</span></div>
+        <div class="card-body">
+          @if (d.earnings.eachMonthEarnings.length) { <app-chart type="bar" [labels]="monthLabels()" [datasets]="monthSets()" [currency]="true" /> }
+          @else { <app-state [empty]="true" emptyText="No sales yet" icon="bi-bar-chart" /> }
+        </div>
+      </div>
+    }
+
+    @default {
+      <div class="card">
+        @if (tab() !== 'payments') {
+          <div class="filter-bar">
+            <input class="form-control form-control-sm search" placeholder="Search..." [(ngModel)]="search" (keyup.enter)="page = 1; loadTab()" [hidden]="tab() === 'orders'" />
+            @if (tab() === 'products') {
+              <select class="form-select form-select-sm" [(ngModel)]="status" (change)="page = 1; loadTab()">
+                <option value="">All</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="outOfStock">Out of stock</option>
+              </select>
+            }
+            @if (tab() === 'orders') {
+              <select class="form-select form-select-sm" [(ngModel)]="status" (change)="page = 1; loadTab()">
+                <option value="">All statuses</option>
+                @for (s of ['Pending','Confirmed','Packed','Shipped','Delivered','Cancelled','Returned']; track s) { <option [value]="s">{{ s }}</option> }
+              </select>
+              <span class="ms-auto small text-muted">Revenue: <strong>{{ extra().totalRevenue | inr }}</strong></span>
+            }
+          </div>
+        }
+        <div class="table-responsive">
+          <table class="table table-hover">
+            @switch (tab()) {
+              @case ('products') {
+                <thead><tr><th>Product</th><th>Category</th><th class="text-end">Price</th><th class="text-end">Stock</th><th class="text-end">Sold</th><th>Status</th></tr></thead>
+                <tbody>
+                  @for (p of rows(); track p._id) {
+                    <tr class="row-link" [routerLink]="['/products', p._id]">
+                      <td><div class="cell-title">{{ p.name }}</div><div class="cell-sub">{{ p.sku }}</div></td>
+                      <td>{{ p.categoryId?.name }}<div class="cell-sub">{{ p.subCategoryId?.name }}</div></td>
+                      <td class="text-end">{{ p.finalPrice | inr }}</td>
+                      <td class="text-end" [class.text-danger]="p.stock <= 0" [class.text-warning]="p.stock > 0 && p.stock <= p.lowStockThreshold">{{ p.stock }}</td>
+                      <td class="text-end">{{ p.soldCount }}</td>
+                      <td><app-status-badge [status]="p.isActive ? 'Active' : 'Inactive'" /> @if (p.disabledByAdmin) { <span class="badge text-bg-danger">Admin disabled</span> }</td>
+                    </tr>
+                  }
+                </tbody>
+              }
+              @case ('orders') {
+                <thead><tr><th>Order</th><th>Customer</th><th class="text-end">Amount</th><th>Payment</th><th>Status</th></tr></thead>
+                <tbody>
+                  @for (o of rows(); track o._id) {
+                    <tr class="row-link" [routerLink]="['/orders', o._id]">
+                      <td><div class="cell-title small">{{ o.orderId }}</div><div class="cell-sub">{{ o.createdAt | date: 'd MMM y, h:mm a' }} · {{ o.source }}</div></td>
+                      <td>{{ o.userId?.name || o.customerSnapshot?.name }}<div class="cell-sub">{{ o.userId?.mobileNumber || o.customerSnapshot?.mobileNumber }}</div></td>
+                      <td class="text-end">{{ o.finalAmount | inr }}</td>
+                      <td>{{ o.paymentMethod }} <app-status-badge [status]="o.paymentStatus" /></td>
+                      <td><app-status-badge [status]="o.orderStatus" /></td>
+                    </tr>
+                  }
+                </tbody>
+              }
+              @case ('customers') {
+                <thead><tr><th>Customer</th><th>Type</th><th class="text-end">Orders</th><th class="text-end">Spent</th><th>Linked by</th><th>Since</th></tr></thead>
+                <tbody>
+                  @for (c of rows(); track c._id) {
+                    <tr class="row-link" [routerLink]="['/users', c.userId?._id]">
+                      <td><div class="cell-title">{{ c.name || c.userId?.name || '—' }}</div><div class="cell-sub">{{ c.mobileNumber }}</div></td>
+                      <td>{{ c.customerType }}</td>
+                      <td class="text-end">{{ c.totalOrders }}</td>
+                      <td class="text-end">{{ c.totalSpent | inr }}</td>
+                      <td>{{ c.linkedBy }}</td>
+                      <td class="small">{{ c.createdAt | date: 'd MMM y' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              }
+              @case ('payments') {
+                <thead><tr><th>Transaction</th><th>Order</th><th>Type</th><th>Method</th><th class="text-end">Amount</th><th>Status</th><th>Date</th></tr></thead>
+                <tbody>
+                  @for (p of rows(); track p._id) {
+                    <tr>
+                      <td><code class="ref">{{ p.transactionId }}</code></td>
+                      <td>@if (p.orderId) { <a [routerLink]="['/orders', p.orderId._id]">{{ p.orderId.orderId }}</a> } @else { — }</td>
+                      <td>{{ p.type }}</td>
+                      <td>{{ p.method }}</td>
+                      <td class="text-end" [class.text-danger]="p.type === 'Refund'">{{ p.type === 'Refund' ? '-' : '' }}{{ p.amount | inr }}</td>
+                      <td><app-status-badge [status]="p.status" /></td>
+                      <td class="small">{{ p.createdAt | date: 'd MMM y' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              }
+            }
+          </table>
+        </div>
+        <app-state [loading]="tabLoading()" [empty]="!tabLoading() && !rows().length" />
+        <app-pagination [page]="page" [pages]="pages()" [total]="total()" [limit]="10" (pageChange)="goTo($event)" />
+        @if (tab() === 'payments' && extra().payouts?.length) {
+          <div class="card-header border-top"><span class="card-title">Payouts</span></div>
+          <div class="table-responsive">
+            <table class="table">
+              <thead><tr><th>Payout</th><th class="text-end">Amount</th><th>Status</th><th>UTR</th><th>Date</th></tr></thead>
+              <tbody>
+                @for (p of extra().payouts; track p._id) {
+                  <tr class="row-link" [routerLink]="['/payments/payouts', p._id]">
+                    <td><code class="ref">{{ p.payoutId }}</code></td><td class="text-end">{{ p.amount | inr }}</td><td><app-status-badge [status]="p.status" /></td><td>{{ p.transactionRef || '—' }}</td><td class="small">{{ p.createdAt | date: 'd MMM y' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    }
+  }
+
+  <app-modal [open]="commissionModal()" title="Change commission" size="sm" [centered]="true" (closed)="commissionModal.set(false)">
+    <div class="form-check form-switch mb-3">
+      <input class="form-check-input" type="checkbox" id="cdef" [(ngModel)]="commissionDefault" />
+      <label class="form-check-label" for="cdef">Use platform default</label>
+    </div>
+    @if (!commissionDefault) {
+      <div class="input-group"><input type="number" class="form-control" [(ngModel)]="commissionValue" min="0" max="100" step="0.5" /><span class="input-group-text">%</span></div>
+    }
+    <div class="form-text mt-2">Applies to new orders. Existing orders keep the rate they were placed with.</div>
+    <div modal-footer class="modal-footer">
+      <button class="btn btn-light" (click)="commissionModal.set(false)">Cancel</button>
+      <button class="btn btn-primary" (click)="saveCommission()">Save</button>
+    </div>
+  </app-modal>
+}
