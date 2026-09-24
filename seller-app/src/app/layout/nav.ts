@@ -11,6 +11,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
       { label: 'Inventory', icon: 'bi-boxes', link: '/inventory' },
       { label: 'Customers', icon: 'bi-people', link: '/customers' },
       { label: 'Invoices', icon: 'bi-file-earmark-text', link: '/invoices' },
+      { label: 'Returns', icon: 'bi-arrow-return-left', link: '/returns' },
     ],
   },
   {
