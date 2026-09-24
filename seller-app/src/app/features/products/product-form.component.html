@@ -1,0 +1,149 @@
+<app-page-header [title]="isEdit ? 'Edit product' : 'Add product'" back="/products" backLabel="Products">
+  @if (isEdit) { <button class="btn btn-sm btn-outline-danger" (click)="remove()"><i class="bi bi-trash"></i></button> }
+</app-page-header>
+<app-state [loading]="loading()" />
+
+@if (!loading()) {
+  @if (product()?.disabledByAdmin) { <div class="alert alert-danger small"><i class="bi bi-eye-slash me-1"></i>Disabled by admin: {{ product()!.adminNote || 'contact support' }}. You can edit it but not make it visible.</div> }
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="card mb-3">
+        <div class="card-body">
+          <label class="form-label">Photos (up to 6)</label>
+          <div class="d-flex flex-wrap gap-3 mb-3">
+            @for (img of existingImages; track img; let i = $index) {
+              <div class="img-tile"><img [src]="img" alt="" /><button class="btn btn-danger btn-sm" (click)="existingImages.splice(i, 1)" aria-label="Remove">×</button></div>
+            }
+            @for (n of newFiles; track n.url; let i = $index) {
+              <div class="img-tile"><img [src]="n.url" alt="" /><button class="btn btn-danger btn-sm" (click)="newFiles.splice(i, 1)" aria-label="Remove">×</button></div>
+            }
+            @if (existingImages.length + newFiles.length < 6) {
+              <label class="img-tile d-flex flex-column align-items-center justify-content-center border rounded text-muted small" style="border-style: dashed !important; cursor: pointer">
+                <i class="bi bi-camera fs-4"></i>Add
+                <input type="file" accept="image/*" multiple hidden (change)="addImages($event)" />
+              </label>
+            }
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label required">Product name</label>
+            <input class="form-control" [(ngModel)]="f.name" [class.is-invalid]="touched && !(f.name?.trim().length >= 2)" placeholder="e.g. Red Casual Shoes" />
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-6">
+              <label class="form-label required">Category</label>
+              <select class="form-select" [(ngModel)]="f.categoryId" (change)="onCategory()" [class.is-invalid]="touched && !f.categoryId">
+                <option value="">Select</option>
+                @for (c of categories(); track c._id) { <option [value]="c._id">{{ c.name }}</option> }
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Sub-category</label>
+              <select class="form-select" [(ngModel)]="f.subCategoryId" [disabled]="!subs().length">
+                <option value="">—</option>
+                @for (s of subs(); track s._id) { <option [value]="s._id">{{ s.name }}</option> }
+              </select>
+            </div>
+          </div>
+          <label class="form-label">Description</label>
+          <textarea class="form-control" rows="3" [(ngModel)]="f.description" placeholder="Size, colour, material..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card mb-3">
+        <div class="card-header"><span class="card-title">Price</span></div>
+        <div class="card-body">
+          <div class="row g-2 mb-2">
+            <div class="col-6"><label class="form-label required">Selling price (₹)</label><input type="number" min="0" step="0.01" inputmode="decimal" class="form-control" [(ngModel)]="f.sellingPrice" [class.is-invalid]="touched && (f.sellingPrice === null || f.sellingPrice === '')" /></div>
+            <div class="col-6"><label class="form-label">MRP (₹)</label><input type="number" min="0" step="0.01" inputmode="decimal" class="form-control" [(ngModel)]="f.mrp" /></div>
+            <div class="col-6"><label class="form-label">Cost price (₹)</label><input type="number" min="0" step="0.01" inputmode="decimal" class="form-control" [(ngModel)]="f.costPrice" /><div class="form-text">Private – for profit reports</div></div>
+            <div class="col-6"><label class="form-label">GST</label>
+              <select class="form-select" [(ngModel)]="f.gstRate">@for (g of cfg.config().gstSlabs; track g.percentage) { <option [ngValue]="g.percentage">{{ g.percentage }}%</option> }</select></div>
+          </div>
+          <div class="bg-body-tertiary rounded p-2 small">
+            <div class="d-flex justify-content-between"><span>Selling price</span><span>{{ f.sellingPrice || 0 | inr }}</span></div>
+            <div class="d-flex justify-content-between"><span>GST ({{ f.gstRate }}%)</span><span>{{ gst | inr }}</span></div>
+            <div class="d-flex justify-content-between fw-bold fs-6 border-top mt-1 pt-1"><span>Customer pays</span><span>{{ finalPrice | inr }}</span></div>
+            @if (f.mrp && f.mrp > f.sellingPrice) { <div class="text-success">Discount {{ f.mrp - f.sellingPrice | inr }} on MRP</div> }
+            @if (margin !== null) { <div [class.text-success]="margin > 0" [class.text-danger]="margin <= 0">Margin {{ margin }}%</div> }
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center"><span class="card-title">Stock & code</span>
+          @if (isEdit) { <button class="btn btn-sm btn-outline-primary" (click)="adjust = { quantity: null, mode: 'add', reason: 'Added', note: '' }; adjustOpen.set(true)"><i class="bi bi-plus-slash-minus me-1"></i>Adjust stock</button> }</div>
+        <div class="card-body">
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label">{{ isEdit ? 'Current stock' : 'Opening stock' }}</label>
+              <input type="number" min="0" inputmode="numeric" class="form-control" [(ngModel)]="f.stock" [disabled]="isEdit" />
+            </div>
+            <div class="col-6"><label class="form-label">Alert below</label><input type="number" min="0" inputmode="numeric" class="form-control" [(ngModel)]="f.lowStockThreshold" /></div>
+            <div class="col-12">
+              <label class="form-label">SKU / product code</label>
+              <div class="input-group">
+                <input class="form-control" [(ngModel)]="f.sku" placeholder="Leave empty to auto-generate" />
+                @if (isEdit) { <button class="btn btn-outline-secondary" (click)="showBarcode()" title="Barcode / QR"><i class="bi bi-qr-code"></i></button> }
+              </div>
+            </div>
+          </div>
+          <div class="form-check form-switch mt-3">
+            <input class="form-check-input" type="checkbox" id="act" [(ngModel)]="f.isActive" [disabled]="!!product()?.disabledByAdmin" />
+            <label class="form-check-label" for="act">Visible to customers</label>
+          </div>
+          @if (!isEdit) { <div class="form-text">Your customers get a notification when a new product is added.</div> }
+        </div>
+      </div>
+
+      @if (isEdit && product(); as p) {
+        <div class="card mb-3">
+          <div class="card-header"><span class="card-title">Stock history</span></div>
+          <ul class="list-group list-group-flush small">
+            @for (m of movements(); track m._id) {
+              <li class="list-group-item d-flex justify-content-between">
+                <span>{{ m.reason }}@if (m.note) { <span class="text-muted"> · {{ m.note }}</span> }<div class="cell-sub">{{ m.createdAt | date: 'd MMM, h:mm a' }}</div></span>
+                <span class="text-end"><strong [class.text-success]="m.change > 0" [class.text-danger]="m.change < 0">{{ m.change > 0 ? '+' : '' }}{{ m.change }}</strong><div class="cell-sub">→ {{ m.balanceAfter }}</div></span>
+              </li>
+            } @empty { <li class="list-group-item text-muted text-center">No stock changes yet</li> }
+          </ul>
+          <div class="card-footer small text-muted">Sold: {{ p.soldCount }} · Rating: {{ p.ratingCount ? p.rating.toFixed(1) + ' ⭐ (' + p.ratingCount + ')' : '—' }}</div>
+        </div>
+      }
+    </div>
+  </div>
+
+  <div class="fab-bar d-grid mt-2">
+    <button class="btn btn-primary btn-lg shadow" (click)="save()" [disabled]="saving()">
+      @if (saving()) { <span class="spinner-border spinner-border-sm me-2"></span> }{{ isEdit ? 'Save changes' : 'Save product' }}
+    </button>
+  </div>
+}
+
+<app-sheet [open]="adjustOpen()" title="Adjust stock" (closed)="adjustOpen.set(false)">
+  <div class="btn-group w-100 mb-3">
+    <input type="radio" class="btn-check" id="m1" name="mode" value="add" [(ngModel)]="adjust.mode" /><label class="btn btn-outline-primary" for="m1">Add / remove</label>
+    <input type="radio" class="btn-check" id="m2" name="mode" value="set" [(ngModel)]="adjust.mode" /><label class="btn btn-outline-primary" for="m2">Set exact count</label>
+  </div>
+  <label class="form-label">{{ adjust.mode === 'add' ? 'Quantity (use minus for removing, e.g. -2)' : 'New stock count' }}</label>
+  <input type="number" class="form-control form-control-lg mb-3" inputmode="numeric" [(ngModel)]="adjust.quantity" />
+  <label class="form-label">Reason</label>
+  <select class="form-select mb-3" [(ngModel)]="adjust.reason"><option value="Added">New stock arrived</option><option value="Damage">Damaged / expired</option><option value="Return">Customer return</option><option value="Recount">Recount</option><option value="Adjustment">Other</option></select>
+  <input class="form-control" placeholder="Note (optional)" [(ngModel)]="adjust.note" />
+  <div class="small text-muted mt-2">Current stock: {{ product()?.stock }}</div>
+  <div sheet-footer class="sheet-footer"><button class="btn btn-light" (click)="adjustOpen.set(false)">Cancel</button><button class="btn btn-primary" (click)="saveAdjust()">Save</button></div>
+</app-sheet>
+
+<app-sheet [open]="!!barcode()" title="Product QR code" (closed)="barcode.set(null)">
+  @if (barcode(); as b) {
+    <div class="text-center">
+      <img [src]="b.qrCode" width="220" height="220" alt="QR" class="border rounded" />
+      <div class="fw-semibold mt-2">{{ b.name }}</div>
+      <div class="text-muted">{{ b.sku }} · {{ b.price | inr }}</div>
+      <div class="form-text">Stick this on the product. Scanning it in the billing screen adds the item.</div>
+    </div>
+  }
+  <div sheet-footer class="sheet-footer"><button class="btn btn-primary" (click)="printBarcode()"><i class="bi bi-printer me-1"></i>Print label</button></div>
+</app-sheet>

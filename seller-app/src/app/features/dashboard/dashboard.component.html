@@ -1,0 +1,88 @@
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <div class="text-muted small">{{ greeting }},</div>
+    <h1 class="h5 fw-bold mb-0">{{ auth.seller()?.ownerName }} 👋</h1>
+  </div>
+  <a routerLink="/billing" class="btn btn-primary d-none d-lg-inline-block"><i class="bi bi-receipt-cutoff me-1"></i>New bill</a>
+</div>
+
+<app-state [loading]="!d() && !error()" [error]="error()" />
+
+@if (d(); as d) {
+  <div class="card mb-3 border-0 text-white" style="background: linear-gradient(135deg, #059669, #0e7490)">
+    <div class="card-body">
+      <div class="small opacity-75">Today's sales · आज की बिक्री</div>
+      <div class="display-6 fw-bold">{{ d.today.revenue | inr: 0 }}</div>
+      <div class="d-flex gap-4 small mt-2">
+        <span><i class="bi bi-bag"></i> {{ d.today.orders }} orders</span>
+        <span><i class="bi bi-check2-circle"></i> {{ d.today.delivered }} delivered</span>
+        @if (d.today.cancelled) { <span><i class="bi bi-x-circle"></i> {{ d.today.cancelled }} cancelled</span> }
+      </div>
+    </div>
+  </div>
+
+  <div class="quick-actions mb-3">
+    <a routerLink="/billing"><i class="bi bi-receipt-cutoff"></i>New bill</a>
+    <a routerLink="/products/new"><i class="bi bi-plus-square"></i>Add product</a>
+    <a routerLink="/customers" [queryParams]="{ add: 1 }"><i class="bi bi-person-plus"></i>Add customer</a>
+    <a routerLink="/analytics"><i class="bi bi-bar-chart-line"></i>Reports</a>
+  </div>
+
+  @if (d.openOrders.total) {
+    <a routerLink="/orders" [queryParams]="{ status: 'open' }" class="card mb-3 text-decoration-none border-warning">
+      <div class="card-body d-flex align-items-center gap-3 py-3">
+        <span class="stat-icon bg-warning-subtle text-warning" style="width:44px;height:44px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;font-size:1.3rem"><i class="bi bi-bell"></i></span>
+        <div class="flex-grow-1">
+          <div class="fw-semibold text-body">{{ d.openOrders.total }} order(s) need action</div>
+          <div class="small text-muted">{{ d.openOrders.pending }} new · {{ d.openOrders.confirmed }} confirmed · {{ d.openOrders.packed }} packed · {{ d.openOrders.shipped }} shipped</div>
+        </div>
+        <i class="bi bi-chevron-right text-muted"></i>
+      </div>
+    </a>
+  }
+
+  <div class="row g-3 mb-3">
+    <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="small text-muted">This month</div><div class="fs-5 fw-semibold">{{ d.month.revenue | inr: 0 }}</div><div class="small text-muted">{{ d.month.orders }} orders</div></div></div></div>
+    <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="small text-muted">Avg. order</div><div class="fs-5 fw-semibold">{{ d.month.averageOrderValue | inr: 0 }}</div><div class="small text-muted">{{ d.customers }} customers</div></div></div></div>
+    <div class="col-6 col-xl-3"><a routerLink="/earnings" class="card h-100 text-decoration-none"><div class="card-body"><div class="small text-muted">Payout due</div><div class="fs-5 fw-semibold text-success">{{ d.earnings.pendingAmount | inr: 0 }}</div><div class="small text-muted">{{ d.earnings.onHoldAmount | inr: 0 }} on hold</div></div></a></div>
+    <div class="col-6 col-xl-3"><a routerLink="/inventory" class="card h-100 text-decoration-none"><div class="card-body"><div class="small text-muted">Products</div><div class="fs-5 fw-semibold text-body">{{ d.products.active }} / {{ d.products.total }}</div><div class="small" [class.text-danger]="d.products.outOfStock" [class.text-muted]="!d.products.outOfStock">{{ d.products.outOfStock }} out of stock</div></div></a></div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between"><span class="card-title">Last 14 days</span>@if (trend()?.bestDay) { <span class="small text-muted">Best: {{ trend().bestDay.sales | inr: 0 }}</span> }</div>
+        <div class="card-body"><app-chart type="bar" [labels]="labels()" [datasets]="sets()" [currency]="true" [legend]="false" [height]="220" /></div>
+      </div>
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between"><span class="card-title">Recent orders</span><a routerLink="/orders" class="small">View all</a></div>
+        <div class="m-list">
+          @for (o of d.recentOrders; track o._id) {
+            <a class="m-item" [routerLink]="['/orders', o._id]">
+              <span class="thumb"><i class="bi" [class.bi-receipt]="o.source === 'POS'" [class.bi-phone]="o.source !== 'POS'"></i></span>
+              <span class="flex-grow-1 min-w-0">
+                <span class="d-block fw-semibold small text-truncate">{{ o.userId?.name || o.customerSnapshot?.name || 'Customer' }}</span>
+                <span class="cell-sub">{{ o.orderId }} · {{ o.createdAt | date: 'd MMM, h:mm a' }}</span>
+              </span>
+              <span class="text-end"><span class="d-block fw-semibold small">{{ o.finalAmount | inr: 0 }}</span><app-status-badge [status]="o.orderStatus" /></span>
+            </a>
+          } @empty { <div class="text-center text-muted small py-4">No orders yet. Create your first bill!</div> }
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between"><span class="card-title"><i class="bi bi-exclamation-triangle text-warning me-1"></i>Stock alerts</span><a routerLink="/inventory" class="small">Inventory</a></div>
+        <div class="m-list">
+          @for (p of d.lowStock; track p._id) {
+            <a class="m-item" [routerLink]="['/products', p._id]">
+              @if (p.images?.[0]) { <img [src]="p.images[0]" class="thumb" alt="" /> } @else { <span class="thumb"><i class="bi bi-box"></i></span> }
+              <span class="flex-grow-1 small fw-semibold text-truncate">{{ p.name }}</span>
+              <span class="badge" [class.text-bg-danger]="p.stock <= 0" [class.text-bg-warning]="p.stock > 0">{{ p.stock <= 0 ? 'Out of stock' : p.stock + ' left' }}</span>
+            </a>
+          } @empty { <div class="text-center text-muted small py-4"><i class="bi bi-check2-circle text-success fs-4 d-block"></i>Stock is healthy</div> }
+        </div>
+      </div>
+    </div>
+  </div>
+}

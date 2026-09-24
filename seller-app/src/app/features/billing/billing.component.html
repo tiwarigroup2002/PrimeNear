@@ -1,0 +1,117 @@
+<app-page-header title="New bill" subtitle="Counter sale · बिल बनाएं">
+  @if (lines().length) { <button class="btn btn-sm btn-outline-danger" (click)="clear()"><i class="bi bi-x-circle me-1"></i>Clear</button> }
+</app-page-header>
+
+<div class="row g-3">
+  <div class="col-lg-6 order-lg-2">
+    <div class="card mb-3">
+      <div class="card-body pb-2">
+        <div class="input-group input-group-lg">
+          <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
+          <input #search class="form-control" placeholder="Search or scan product" [(ngModel)]="q" (ngModelChange)="onType()" (keyup.enter)="onEnter()" autofocus />
+        </div>
+      </div>
+      <div class="m-list" style="max-height: 360px; overflow-y: auto">
+        @for (p of results(); track p._id) {
+          <button class="m-item w-100 border-0 bg-transparent text-start" (click)="add(p)" [disabled]="p.stock <= 0">
+            @if (p.images?.[0]) { <img [src]="p.images[0]" class="thumb" alt="" /> } @else { <span class="thumb"><i class="bi bi-box"></i></span> }
+            <span class="flex-grow-1 min-w-0"><span class="d-block fw-semibold small text-truncate">{{ p.name }}</span><span class="cell-sub">{{ p.sku }} · {{ p.stock <= 0 ? 'Out of stock' : p.stock + ' in stock' }}</span></span>
+            <span class="fw-semibold small">{{ p.finalPrice | inr: 0 }}</span>
+            <i class="bi bi-plus-circle-fill text-primary fs-5"></i>
+          </button>
+        } @empty {
+          <div class="text-center text-muted small py-4">@if (searching()) { Searching... } @else { No products found }</div>
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6 order-lg-1">
+    <div class="card mb-3">
+      <div class="card-body py-2">
+        <button class="btn w-100 d-flex align-items-center gap-2 px-0 text-start" (click)="openCustomer()">
+          <i class="bi bi-person-circle fs-4 text-primary"></i>
+          <span class="flex-grow-1">
+            @if (customer(); as c) { <span class="fw-semibold d-block">{{ c.name || 'Customer' }}</span><span class="small text-muted">{{ c.mobileNumber }}</span> }
+            @else { <span class="fw-semibold d-block">Walk-in customer</span><span class="small text-muted">Tap to choose a saved customer</span> }
+          </span>
+          @if (customer()) { <span class="btn btn-sm btn-link text-danger" (click)="$event.stopPropagation(); customer.set(null)">Remove</span> } @else { <i class="bi bi-chevron-right"></i> }
+        </button>
+        @if (!customer()) {
+          <div class="row g-2 mt-1">
+            <div class="col-6"><input class="form-control form-control-sm" placeholder="Name (optional)" [(ngModel)]="walkInName" /></div>
+            <div class="col-6"><input class="form-control form-control-sm" placeholder="Mobile (for WhatsApp)" maxlength="10" inputmode="numeric" [(ngModel)]="walkInMobile" /></div>
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between"><span class="card-title">Items ({{ items() }})</span></div>
+      <div class="card-body py-1">
+        @for (l of lines(); track l.productId) {
+          <div class="bill-line">
+            <div class="flex-grow-1 min-w-0">
+              <div class="fw-semibold small line-clamp-2">{{ l.name }}</div>
+              <div class="cell-sub">{{ l.finalPrice | inr }} each · GST {{ l.gstRate }}%</div>
+            </div>
+            <div class="input-group input-group-sm w-auto flex-nowrap">
+              <button class="btn btn-outline-secondary" (click)="setQty(l, l.quantity - 1)" aria-label="Less"><i class="bi bi-dash"></i></button>
+              <input class="form-control qty-input" type="number" inputmode="numeric" [ngModel]="l.quantity" (change)="setQty(l, $any($event.target).value)" />
+              <button class="btn btn-outline-secondary" (click)="setQty(l, l.quantity + 1)" aria-label="More"><i class="bi bi-plus"></i></button>
+            </div>
+            <div class="fw-semibold small text-end" style="min-width: 76px">{{ l.finalPrice * l.quantity | inr }}</div>
+            <button class="btn btn-sm btn-link text-danger p-0" (click)="remove(l)" aria-label="Remove"><i class="bi bi-trash"></i></button>
+          </div>
+        } @empty {
+          <div class="text-center text-muted py-4"><i class="bi bi-cart fs-2 d-block opacity-50"></i>Search or scan a product to start the bill</div>
+        }
+      </div>
+      @if (lines().length) {
+        <div class="card-body border-top small">
+          <div class="d-flex justify-content-between"><span>Subtotal</span><span>{{ subtotal() | inr }}</span></div>
+          <div class="d-flex justify-content-between"><span>GST</span><span>{{ gst() | inr }}</span></div>
+          <div class="d-flex justify-content-between align-items-center mt-1"><span>Discount (₹)</span><input type="number" min="0" class="form-control form-control-sm text-end" style="width: 110px" [(ngModel)]="discount" placeholder="0" /></div>
+          <div class="d-flex justify-content-between fs-5 fw-bold border-top mt-2 pt-2"><span>Total</span><span>{{ total | inr }}</span></div>
+        </div>
+        <div class="card-body border-top">
+          <div class="btn-group w-100 mb-2">
+            <input type="radio" class="btn-check" id="pc" name="pm" value="Cash" [(ngModel)]="paymentMethod" /><label class="btn btn-outline-primary" for="pc"><i class="bi bi-cash me-1"></i>Cash</label>
+            <input type="radio" class="btn-check" id="po" name="pm" value="Online" [(ngModel)]="paymentMethod" /><label class="btn btn-outline-primary" for="po"><i class="bi bi-phone me-1"></i>UPI / Online</label>
+          </div>
+          <input class="form-control form-control-sm" placeholder="Note on bill (optional)" [(ngModel)]="notes" />
+        </div>
+      }
+    </div>
+  </div>
+</div>
+
+@if (lines().length) {
+  <div class="fab-bar d-grid">
+    <button class="btn btn-primary btn-lg shadow d-flex justify-content-between align-items-center" (click)="create()" [disabled]="saving()">
+      <span>@if (saving()) { <span class="spinner-border spinner-border-sm me-2"></span> }Create bill · {{ items() }} item(s)</span>
+      <span class="fw-bold">{{ total | inr }}</span>
+    </button>
+  </div>
+}
+
+<app-sheet [open]="customerOpen()" title="Choose customer" (closed)="customerOpen.set(false)">
+  <input class="form-control mb-2" placeholder="Search name or mobile" [(ngModel)]="cq" (ngModelChange)="findCustomers()" />
+  <div class="list-group mb-3">
+    @for (c of customers(); track c._id) {
+      <button class="list-group-item list-group-item-action d-flex justify-content-between" (click)="pickCustomer(c)">
+        <span>{{ c.name || 'Customer' }} <small class="text-muted">{{ c.mobileNumber }}</small></span>
+        @if (c.customerType === 'Wholesale') { <span class="badge text-bg-info">Wholesale</span> }
+      </button>
+    } @empty { <div class="text-muted small text-center py-2">No saved customers found</div> }
+  </div>
+  <div class="border rounded p-2">
+    <div class="small fw-semibold mb-2"><i class="bi bi-person-plus me-1"></i>Add new customer</div>
+    <div class="row g-2">
+      <div class="col-6"><input class="form-control form-control-sm" placeholder="Mobile *" maxlength="10" inputmode="numeric" [(ngModel)]="newCustomer.mobileNumber" /></div>
+      <div class="col-6"><input class="form-control form-control-sm" placeholder="Name" [(ngModel)]="newCustomer.name" /></div>
+    </div>
+    <button class="btn btn-sm btn-outline-primary w-100 mt-2" (click)="createCustomer()" [disabled]="addingCustomer()">Add & select</button>
+    <div class="form-text">They can then also shop from your store in the user app.</div>
+  </div>
+</app-sheet>

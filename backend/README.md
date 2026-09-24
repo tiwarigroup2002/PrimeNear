@@ -5,7 +5,7 @@ A single Node.js + Express + MongoDB API for all three PrimeNear apps:
 | Route prefix   | App           | Status        |
 |----------------|---------------|---------------|
 | `/api/admin`   | Admin Panel   | ✅ Implemented |
-| `/api/seller`  | Seller App    | ⏳ Next        |
+| `/api/seller`  | Seller App    | ✅ Implemented |
 | `/api/user`    | User App      | ⏳ Next        |
 
 All Mongoose models in `src/models` are shared by the three apps.
@@ -93,3 +93,25 @@ Super admins can grant extra permissions to any admin.
 `audit-logs`, `system-logs`, `login-history`, `notifications`.
 
 All responses: `{ success, message?, data }`; lists: `data = { items, totalCount, page, limit, pages, ... }`.
+
+## Seller API (`/api/seller`)
+
+Login is by **mobile + OTP**. Until an SMS gateway is configured (`SMS_PROVIDER`), OTPs are logged and returned as
+`devOtp` outside production (or set `DEV_FIXED_OTP`). OTPs expire in 5 minutes, can be resent after 30 s,
+max 6 per hour and 5 wrong attempts.
+
+- `POST auth/send-otp`, `POST auth/verify-otp` → a shop token (one shop) or an owner token + shop list (several shops)
+- `POST auth/select-shop` / `POST sellers/switch-shop`, `GET auth/shops`, `GET auth/me`, `POST auth/logout`, `GET config`
+- `dashboard` · `settings`, `profile`, `bank`, `profile/image`
+- `categories` · `products` (+ search, bulk, bulk-upload, toggle-active, barcode) · `inventory` (+ adjust-stock, history, low-stock)
+- `customers` (+ search, bulk-link) — adding a customer gives that mobile number access to the shop in the user app
+- `orders` (+ status, cancel, add-note, invoice) · `invoices` (counter bill / POS: create, list, detail, pdf, share)
+- `analytics/{summary,sales-trend,best-selling,customer-analysis,export-report}` · `earnings`, `payouts`
+- `notifications`, `reviews` (+ respond), `support` tickets (+ comments with photos)
+
+Rules: every query is scoped to the logged-in shop; stock is reserved atomically (no overselling) and every change is
+logged in `StockMovement`; sellers move orders only along Pending → Confirmed → Packed → Shipped → Delivered;
+cancelling a paid app order refunds it and restocks; products disabled by an admin cannot be re-enabled;
+bank detail changes notify the admins; maintenance mode returns `503` to the seller app.
+**Counter bills (POS)** are paid to the seller directly (cash or UPI), so they are never part of platform payouts;
+their commission is only recovered when *Charge commission on cash orders* is enabled.

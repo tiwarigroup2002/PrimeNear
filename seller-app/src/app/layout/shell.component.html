@@ -1,0 +1,86 @@
+<div class="app-shell">
+  <!-- Desktop sidebar -->
+  <aside class="sidebar d-none d-lg-flex">
+    <a routerLink="/dashboard" class="sidebar-brand">
+      <span class="brand-mark"><i class="bi bi-shop"></i></span>
+      <span class="brand-text">{{ cfg.config().platformName }} <small>Seller</small></span>
+    </a>
+    <nav class="sidebar-nav">
+      @for (s of nav; track $index) {
+        @if (s.section) { <div class="nav-section">{{ s.section }}</div> }
+        @for (i of s.items; track i.link) {
+          <a class="nav-link" [routerLink]="i.link" routerLinkActive="active">
+            <i class="bi {{ i.icon }}"></i><span>{{ i.label }}</span>
+            @if (i.link === '/notifications' && unread()) { <span class="badge rounded-pill bg-danger ms-auto">{{ unread() }}</span> }
+          </a>
+        }
+      }
+    </nav>
+    <div class="sidebar-footer"><a class="nav-link" role="button" (click)="logout()"><i class="bi bi-box-arrow-left"></i><span>Logout</span></a></div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="position-relative min-w-0">
+        <button class="shop-switch" (click)="auth.hasManyShops() && shopOpen.set(!shopOpen())" [class.clickable]="auth.hasManyShops()">
+          @if (auth.seller()?.shopImage) { <img [src]="auth.seller()!.shopImage" class="shop-avatar" alt="" /> }
+          @else { <span class="shop-avatar shop-avatar-initial">{{ (auth.seller()?.shopName || '?').slice(0, 1) }}</span> }
+          <span class="text-start min-w-0">
+            <span class="d-block fw-semibold text-truncate">{{ auth.seller()?.shopName }}</span>
+            <span class="d-block small text-muted text-truncate"><i class="bi bi-geo-alt"></i> {{ auth.seller()?.tahsilId?.name }}</span>
+          </span>
+          @if (auth.hasManyShops()) { <i class="bi bi-chevron-down small ms-1"></i> }
+        </button>
+        @if (shopOpen()) {
+          <div class="dropdown-menu show shadow shop-menu">
+            <div class="dropdown-header">My shops</div>
+            @for (s of auth.shops(); track s._id) {
+              <button class="dropdown-item d-flex justify-content-between align-items-center gap-3" (click)="switchShop(s._id)" [disabled]="s.status !== 'Active'">
+                <span><span class="d-block">{{ s.shopName }}</span><small class="text-muted">{{ s.tahsil }} @if (s.status !== 'Active') { · {{ s.status }} }</small></span>
+                @if (s._id === auth.seller()?._id) { <i class="bi bi-check-circle-fill text-success"></i> }
+              </button>
+            }
+          </div>
+        }
+      </div>
+      <div class="flex-grow-1"></div>
+      <button class="btn btn-icon" (click)="theme.toggle()" aria-label="Theme"><i class="bi" [class.bi-moon-stars]="theme.theme() === 'light'" [class.bi-sun]="theme.theme() === 'dark'"></i></button>
+      <a class="btn btn-icon position-relative" routerLink="/notifications" aria-label="Notifications">
+        <i class="bi bi-bell"></i>
+        @if (unread()) { <span class="badge rounded-pill bg-danger notif-count">{{ unread() > 9 ? '9+' : unread() }}</span> }
+      </a>
+      <a class="btn btn-icon d-none d-lg-inline-flex" routerLink="/settings" aria-label="Settings"><i class="bi bi-gear"></i></a>
+    </header>
+
+    <main class="content"><router-outlet /></main>
+  </div>
+
+  <!-- Mobile bottom tabs -->
+  <nav class="tabbar d-lg-none">
+    @for (t of tabs; track t.link) {
+      @if (t.link === '/billing') {
+        <a class="tab tab-bill" routerLink="/billing" aria-label="New bill"><span><i class="bi bi-plus-lg"></i></span><small>Bill</small></a>
+      } @else {
+        <a class="tab" [routerLink]="t.link" routerLinkActive="active"><i class="bi {{ t.icon }}"></i><small>{{ t.label }}</small></a>
+      }
+    }
+    <a class="tab" role="button" (click)="moreOpen.set(true)" [class.active]="moreOpen()">
+      <i class="bi bi-grid"></i><small>More</small>
+      @if (unread()) { <span class="dot"></span> }
+    </a>
+  </nav>
+
+  <app-sheet [open]="moreOpen()" title="Menu" (closed)="moreOpen.set(false)">
+    <div class="more-grid">
+      @for (s of nav; track $index) {
+        @for (i of s.items; track i.link) {
+          <a class="more-item" [routerLink]="i.link">
+            <i class="bi {{ i.icon }}"></i><span>{{ i.label }}</span>
+            @if (i.link === '/notifications' && unread()) { <span class="badge rounded-pill bg-danger">{{ unread() }}</span> }
+          </a>
+        }
+      }
+      <a class="more-item text-danger" role="button" (click)="logout()"><i class="bi bi-box-arrow-right"></i><span>Logout</span></a>
+    </div>
+  </app-sheet>
+</div>
