@@ -35,6 +35,9 @@ const orderSchema = new mongoose.Schema(
     customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
     customerSnapshot: { name: String, mobileNumber: String },
     items: [orderItemSchema],
+    deliveryType: { type: String, enum: ['Delivery', 'Pickup'], default: 'Delivery' },
+    // Online orders wait for payment until this time, then they are cancelled automatically
+    paymentExpiresAt: Date,
     deliveryAddress: {
       name: String,
       fullAddress: String,

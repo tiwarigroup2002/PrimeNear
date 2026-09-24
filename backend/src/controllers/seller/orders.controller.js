@@ -8,20 +8,21 @@ const { createBill } = require('../../services/billing.service');
 const { ensureInvoice, whatsappText, invoicePdf } = require('../../services/invoice.service');
 const { sendSms } = require('../../services/sms.service');
 const { REVENUE_MATCH, NET_AMOUNT, round2 } = require('../../services/metrics');
+const { VISIBLE_TO_SELLER } = require('../../services/checkout.service');
 
 const actor = (req) => ({ byType: 'Seller', by: req.sellerId, byName: req.seller.shopName });
 
 async function findOrder(req) {
   const id = req.params.orderId;
   const q = mongoose.isValidObjectId(id) ? { _id: id } : { orderId: id };
-  const order = await Order.findOne({ ...q, sellerId: req.sellerId });
+  const order = await Order.findOne({ ...q, sellerId: req.sellerId, ...VISIBLE_TO_SELLER });
   if (!order) throw ApiError.notFound('Order not found');
   return order;
 }
 
 async function list(req, res) {
   const p = getPagination(req.query);
-  const filter = { sellerId: req.sellerId, ...dateRange(req.query) };
+  const filter = { sellerId: req.sellerId, ...VISIBLE_TO_SELLER, ...dateRange(req.query) };
   const { status, source, paymentMethod, search, filter: quick } = req.query;
   if (status === 'open') filter.orderStatus = { $in: ['Pending', 'Confirmed', 'Packed', 'Shipped'] };
   else if (status) filter.orderStatus = status;
@@ -40,7 +41,7 @@ async function list(req, res) {
     Order.find(filter).sort({ createdAt: -1 }).skip(p.skip).limit(p.limit).populate('userId', 'name mobileNumber').select('-statusHistory -notes'),
     Order.countDocuments(filter),
     Order.aggregate([{ $match: { ...filter, sellerId: new mongoose.Types.ObjectId(String(req.sellerId)), ...REVENUE_MATCH } }, { $group: { _id: null, total: { $sum: NET_AMOUNT } } }]),
-    Order.aggregate([{ $match: { sellerId: new mongoose.Types.ObjectId(String(req.sellerId)) } }, { $group: { _id: '$orderStatus', count: { $sum: 1 } } }]),
+    Order.aggregate([{ $match: { sellerId: new mongoose.Types.ObjectId(String(req.sellerId)), ...VISIBLE_TO_SELLER } }, { $group: { _id: '$orderStatus', count: { $sum: 1 } } }]),
   ]);
   return ok(res, paginated(items, total, p, { totalAmount: round2(sum[0]?.total), statusCounts: Object.fromEntries(counts.map((c) => [c._id, c.count])) }));
 }

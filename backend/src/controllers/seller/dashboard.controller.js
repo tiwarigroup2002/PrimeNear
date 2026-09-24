@@ -2,6 +2,7 @@ const { ok } = require('../../utils/respond');
 const { Order, Product, Customer } = require('../../models');
 const { REVENUE_MATCH, NET_AMOUNT, round2, startOfDay, startOfMonth } = require('../../services/metrics');
 const { sellerEarnings } = require('../../services/payout.service');
+const { VISIBLE_TO_SELLER } = require('../../services/checkout.service');
 
 async function totals(sellerId, from) {
   const [row] = await Order.aggregate([
@@ -19,14 +20,14 @@ async function dashboard(req, res) {
   const [t, m, statusToday, openCounts, products, lowStock, recentOrders, customers, earnings] = await Promise.all([
     totals(sellerId, today),
     totals(sellerId, month),
-    Order.aggregate([{ $match: { sellerId, createdAt: { $gte: today } } }, { $group: { _id: '$orderStatus', count: { $sum: 1 } } }]),
-    Order.aggregate([{ $match: { sellerId, orderStatus: { $in: ['Pending', 'Confirmed', 'Packed', 'Shipped'] } } }, { $group: { _id: '$orderStatus', count: { $sum: 1 } } }]),
+    Order.aggregate([{ $match: { sellerId, ...VISIBLE_TO_SELLER, createdAt: { $gte: today } } }, { $group: { _id: '$orderStatus', count: { $sum: 1 } } }]),
+    Order.aggregate([{ $match: { sellerId, ...VISIBLE_TO_SELLER, orderStatus: { $in: ['Pending', 'Confirmed', 'Packed', 'Shipped'] } } }, { $group: { _id: '$orderStatus', count: { $sum: 1 } } }]),
     Product.aggregate([
       { $match: { sellerId, isDeleted: false } },
       { $group: { _id: null, total: { $sum: 1 }, active: { $sum: { $cond: ['$isActive', 1, 0] } }, outOfStock: { $sum: { $cond: [{ $lte: ['$stock', 0] }, 1, 0] } }, value: { $sum: { $multiply: ['$stock', { $ifNull: ['$costPrice', '$sellingPrice'] }] } } } },
     ]),
     Product.find({ sellerId, isDeleted: false, isActive: true, $expr: { $lte: ['$stock', '$lowStockThreshold'] } }).sort({ stock: 1 }).limit(8).select('name stock lowStockThreshold images'),
-    Order.find({ sellerId }).sort({ createdAt: -1 }).limit(6).select('orderId finalAmount orderStatus paymentMethod paymentStatus source createdAt customerSnapshot').populate('userId', 'name mobileNumber'),
+    Order.find({ sellerId, ...VISIBLE_TO_SELLER }).sort({ createdAt: -1 }).limit(6).select('orderId finalAmount orderStatus paymentMethod paymentStatus source createdAt customerSnapshot').populate('userId', 'name mobileNumber'),
     Customer.countDocuments({ sellerId }),
     sellerEarnings(sellerId),
   ]);

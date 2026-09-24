@@ -71,7 +71,7 @@ async function create(req, res) {
 async function getOne(req, res) {
   const customer = await findCustomer(req);
   const [orders, stats] = await Promise.all([
-    Order.find({ sellerId: req.sellerId, $or: [{ customerId: customer._id }, { userId: customer.userId }] }).sort({ createdAt: -1 }).limit(50).select('orderId finalAmount refundedAmount orderStatus paymentStatus paymentMethod source createdAt'),
+    Order.find({ sellerId: req.sellerId, $and: [{ $or: [{ customerId: customer._id }, { userId: customer.userId }] }, { $nor: [{ source: 'Online', paymentMethod: 'Online', paymentStatus: { $in: ['Pending', 'Failed'] } }] }] }).sort({ createdAt: -1 }).limit(50).select('orderId finalAmount refundedAmount orderStatus paymentStatus paymentMethod source createdAt'),
     Order.aggregate([
       { $match: { sellerId: req.sellerId, ...REVENUE_MATCH, $or: [{ customerId: customer._id }, { userId: customer.userId }] } },
       { $group: { _id: null, count: { $sum: 1 }, spent: { $sum: NET_AMOUNT } } },

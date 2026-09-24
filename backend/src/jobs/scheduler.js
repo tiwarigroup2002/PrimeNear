@@ -69,6 +69,7 @@ function startScheduler() {
   if (started || config.isTest) return;
   started = true;
   cron.schedule('*/15 * * * *', () => runDueSchedules().catch((e) => logger.error(e)));
+  cron.schedule('*/5 * * * *', () => require('../services/checkout.service').expireUnpaidOrders().catch((e) => logger.error(e)));
   cron.schedule('0 21 * * *', () => sendDailyDigest().catch((e) => logger.error(e)), { timezone: 'Asia/Kolkata' });
   logger.info('Background scheduler started');
 }

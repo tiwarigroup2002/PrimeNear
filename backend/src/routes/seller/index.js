@@ -205,6 +205,8 @@ router.put('/notifications/:notificationId/read', engage.markRead);
 router.post('/notifications/mark-all-read', engage.markAllRead);
 router.get('/reviews', engage.reviews);
 router.post('/reviews/:reviewId/respond', validate(Joi.object({ text: Joi.string().trim().min(1).max(1000).required() })), engage.respond);
+router.get('/returns', engage.listReturns);
+router.post('/returns/:returnId/decide', validate(Joi.object({ approve: Joi.boolean().required(), refundAmount: Joi.number().min(0), note: Joi.when('approve', { is: false, then: Joi.string().trim().min(3).max(500).required(), otherwise: Joi.string().allow('').max(500) }) })), engage.decideReturn);
 router.get('/support', engage.tickets);
 router.post(
   '/support',

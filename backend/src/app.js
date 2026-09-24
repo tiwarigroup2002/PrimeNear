@@ -19,6 +19,8 @@ app.use(
     exposedHeaders: ['Content-Disposition'],
   })
 );
+// Webhooks need the raw body for signature checks, so they go before the JSON parser
+app.use('/api/payments', require('./routes/webhooks'));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 if (!config.isTest) app.use(morgan(config.isProd ? 'combined' : 'dev'));
@@ -28,9 +30,10 @@ app.use('/uploads', express.static(config.uploadDir, { maxAge: '7d', index: fals
 
 app.get('/api/health', (_req, res) => res.json({ success: true, status: 'ok', time: new Date() }));
 
-// One backend for all three apps. The user app (/api/user) will be mounted here next.
+// One backend for all three apps
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/seller', require('./routes/seller'));
+app.use('/api/user', require('./routes/user'));
 
 app.use(notFound);
 app.use(errorHandler);

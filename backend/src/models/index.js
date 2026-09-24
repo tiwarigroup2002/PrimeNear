@@ -1,6 +1,7 @@
 module.exports = {
   Admin: require('./Admin'),
   AuditLog: require('./AuditLog'),
+  Cart: require('./Cart'),
   Category: require('./Category'),
   Counter: require('./Counter'),
   Customer: require('./Customer'),
@@ -26,4 +27,5 @@ module.exports = {
   SystemLog: require('./SystemLog'),
   Tahsil: require('./Tahsil'),
   User: require('./User'),
+  Wishlist: require('./Wishlist'),
 };

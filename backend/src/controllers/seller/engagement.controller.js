@@ -120,3 +120,32 @@ async function commentTicket(req, res) {
 }
 
 module.exports = { notifications, markRead, markAllRead, reviews, respond, tickets, ticket, createTicket, commentTicket };
+
+// ---------- Return requests ----------
+const { ReturnRequest, Order: OrderModel } = require('../../models');
+const returns = require('../../services/return.service');
+
+async function listReturns(req, res) {
+  const p = getPagination(req.query);
+  const filter = { sellerId: req.sellerId };
+  if (req.query.status) filter.status = req.query.status;
+  const [items, total, pending] = await Promise.all([
+    ReturnRequest.find(filter).sort({ createdAt: -1 }).skip(p.skip).limit(p.limit).populate('orderId', 'orderId finalAmount refundedAmount paymentMethod items deliveredAt').populate('userId', 'name mobileNumber'),
+    ReturnRequest.countDocuments(filter),
+    ReturnRequest.countDocuments({ sellerId: req.sellerId, status: 'Initiated' }),
+  ]);
+  return ok(res, paginated(items, total, p, { pendingCount: pending }));
+}
+
+async function decideReturn(req, res) {
+  const rr = await ReturnRequest.findOne({ _id: req.params.returnId, sellerId: req.sellerId });
+  if (!rr) throw ApiError.notFound('Return request not found');
+  const order = await OrderModel.findById(rr.orderId);
+  const actor = { byType: 'Seller', by: req.sellerId, byName: req.seller.shopName };
+  if (req.body.approve) await returns.approveReturn(rr, order, { ...actor, refundAmount: req.body.refundAmount, note: req.body.note });
+  else await returns.rejectReturn(rr, order, { ...actor, note: req.body.note });
+  return ok(res, rr, req.body.approve ? 'Return approved' : 'Return rejected');
+}
+
+module.exports.listReturns = listReturns;
+module.exports.decideReturn = decideReturn;

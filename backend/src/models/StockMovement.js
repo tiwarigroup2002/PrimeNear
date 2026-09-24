@@ -14,7 +14,7 @@ const stockMovementSchema = new mongoose.Schema(
     refType: String, // Order / Invoice
     refId: mongoose.Schema.Types.ObjectId,
     note: String,
-    byType: { type: String, enum: ['Seller', 'Admin', 'System'], default: 'System' },
+    byType: { type: String, enum: ['Seller', 'Admin', 'User', 'System'], default: 'System' },
     by: mongoose.Schema.Types.ObjectId,
   },
   { timestamps: { createdAt: true, updatedAt: false } }
