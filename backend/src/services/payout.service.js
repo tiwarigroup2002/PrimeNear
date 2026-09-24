@@ -8,6 +8,12 @@ const { REVENUE_MATCH, NET_AMOUNT, round2, addDays } = require('./metrics');
 
 const COMMISSION = { $divide: [{ $multiply: [NET_AMOUNT, { $ifNull: ['$commissionRate', 0] }] }, 100] };
 
+// Money collected by the platform (Razorpay on the user app). Everything else -
+// cash, COD and seller bills (POS) paid in cash or directly to the seller's UPI -
+// is already with the seller.
+const PLATFORM_COLLECTED = { paymentMethod: 'Online', source: { $ne: 'POS' } };
+const IS_PLATFORM_COLLECTED = { $and: [{ $eq: ['$paymentMethod', 'Online'] }, { $ne: ['$source', 'POS'] }] };
+
 /**
  * Settlement rules
  *  - Online orders: money is in the admin account. After delivery + payoutDelayDays
@@ -20,13 +26,13 @@ async function eligibleMatch(extra = {}) {
   const settings = await getSettings();
   const { payoutDelayDays, chargeCommissionOnCash } = settings.commissionSettings;
   const cutoff = addDays(new Date(), -payoutDelayDays);
-  const or = [{ paymentMethod: 'Online', orderStatus: 'Delivered', deliveredAt: { $lte: cutoff } }];
-  if (chargeCommissionOnCash) or.push({ paymentMethod: 'Cash' });
+  const or = [{ ...PLATFORM_COLLECTED, orderStatus: 'Delivered', deliveredAt: { $lte: cutoff } }];
+  if (chargeCommissionOnCash) or.push({ paymentMethod: 'Cash' }, { source: 'POS' });
   return { match: { settlementStatus: 'Unsettled', ...REVENUE_MATCH, ...extra, $or: or }, cutoff, payoutDelayDays };
 }
 
 function groupStage() {
-  const isOnline = { $eq: ['$paymentMethod', 'Online'] };
+  const isOnline = IS_PLATFORM_COLLECTED;
   return {
     $group: {
       _id: '$sellerId',
@@ -83,7 +89,7 @@ async function onHoldAmount(sellerId) {
   const match = {
     settlementStatus: 'Unsettled',
     ...REVENUE_MATCH,
-    paymentMethod: 'Online',
+    ...PLATFORM_COLLECTED,
     $or: [{ orderStatus: { $ne: 'Delivered' } }, { deliveredAt: { $gt: cutoff } }],
   };
   if (sellerId) match.sellerId = new mongoose.Types.ObjectId(String(sellerId));
@@ -222,4 +228,4 @@ async function sellerEarnings(sellerId, { from, to } = {}) {
   };
 }
 
-module.exports = { pendingBySeller, onHoldAmount, initiatePayouts, updatePayoutStatus, retryPayout, sellerEarnings, COMMISSION };
+module.exports = { PLATFORM_COLLECTED, pendingBySeller, onHoldAmount, initiatePayouts, updatePayoutStatus, retryPayout, sellerEarnings, COMMISSION };

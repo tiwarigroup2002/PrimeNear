@@ -35,7 +35,7 @@ async function refundOrder(order, { amount, reason, adminId, disputeId }) {
     processedAt: new Date(),
   });
 
-  if (order.paymentMethod === 'Online' && order.razorpayPaymentId && razorpay.isConfigured()) {
+  if (order.paymentMethod === 'Online' && order.source !== 'POS' && order.razorpayPaymentId && razorpay.isConfigured()) {
     refund.method = 'Razorpay';
     try {
       const rp = await razorpay.refundPayment(order.razorpayPaymentId, value, { orderId: order.orderId, reason });

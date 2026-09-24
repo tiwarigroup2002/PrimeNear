@@ -257,35 +257,40 @@ function toPdf(data, title, subtitle, file) {
 const EXT = { CSV: 'csv', Excel: 'xlsx', PDF: 'pdf' };
 const MIME = { CSV: 'text/csv', Excel: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', PDF: 'application/pdf' };
 
-/** Generates a report file and stores its metadata. */
-async function generateReport({ reportType, format, period = 'month', from, to, filters = {}, adminId, scheduleId }) {
+/** Builds a report file on disk. Returns { filePath, fileName, rowCount, start, end }. */
+async function buildReportFile({ reportType, format, period = 'month', from, to, filters = {}, title }) {
   const { start, end } = periodRange({ period, from, to });
   const data = await builders[reportType]({ start, end, filters });
   fs.mkdirSync(config.reportDir, { recursive: true });
   const stamp = new Date().toISOString().slice(0, 10);
   const fileName = `${reportType.toLowerCase()}-report-${stamp}.${EXT[format]}`;
   const filePath = path.join(config.reportDir, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${EXT[format]}`);
-  const title = `${reportType} Report`;
+  const heading = title || `${reportType} Report`;
   const subtitle = `Period: ${fmtDate(start)} to ${fmtDate(end)} · Generated ${fmtDate(new Date())} · ${data.rows.length} rows`;
 
   if (format === 'CSV') fs.writeFileSync(filePath, toCsv(data));
-  else if (format === 'Excel') await toExcel(data, title, filePath);
-  else await toPdf(data, title, subtitle, filePath);
+  else if (format === 'Excel') await toExcel(data, heading, filePath);
+  else await toPdf(data, heading, subtitle, filePath);
+  return { filePath, fileName, rowCount: data.rows.length, start, end };
+}
 
+/** Generates a report file and stores its metadata (admin reports). */
+async function generateReport({ reportType, format, period = 'month', from, to, filters = {}, adminId, scheduleId }) {
+  const file = await buildReportFile({ reportType, format, period, from, to, filters });
   return Report.create({
     reportType,
     format,
     period,
-    from: start,
-    to: end,
+    from: file.start,
+    to: file.end,
     filters,
-    fileName,
-    filePath,
-    fileSize: fs.statSync(filePath).size,
-    rowCount: data.rows.length,
+    fileName: file.fileName,
+    filePath: file.filePath,
+    fileSize: fs.statSync(file.filePath).size,
+    rowCount: file.rowCount,
     generatedBy: adminId,
     scheduleId,
   });
 }
 
-module.exports = { generateReport, MIME, builders };
+module.exports = { generateReport, buildReportFile, MIME, builders };

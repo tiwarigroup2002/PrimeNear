@@ -10,6 +10,7 @@ module.exports = {
   LoginHistory: require('./LoginHistory'),
   Notification: require('./Notification'),
   Order: require('./Order'),
+  Otp: require('./Otp'),
   Payment: require('./Payment'),
   Payout: require('./Payout'),
   PlatformSettings: require('./PlatformSettings'),

@@ -43,6 +43,13 @@ module.exports = {
     pass: process.env.SMTP_PASS || '',
     from: process.env.MAIL_FROM || 'PrimeNear <no-reply@primenear.in>',
   },
+  sms: {
+    provider: process.env.SMS_PROVIDER || '', // e.g. msg91 / twilio (not wired yet)
+  },
+  otp: {
+    // Fixed OTP for local testing only (ignored in production)
+    fixedCode: env !== 'production' ? process.env.DEV_FIXED_OTP || '' : '',
+  },
   uploadDir: require('path').join(__dirname, '..', '..', 'uploads'),
   // Generated reports are private and only served through an authenticated endpoint
   reportDir: require('path').join(__dirname, '..', '..', 'storage', 'reports'),

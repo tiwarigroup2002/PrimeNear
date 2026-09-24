@@ -28,9 +28,9 @@ app.use('/uploads', express.static(config.uploadDir, { maxAge: '7d', index: fals
 
 app.get('/api/health', (_req, res) => res.json({ success: true, status: 'ok', time: new Date() }));
 
-// One backend for all three apps. The seller (/api/seller) and user (/api/user)
-// route groups will be mounted here as those apps are built.
+// One backend for all three apps. The user app (/api/user) will be mounted here next.
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/seller', require('./routes/seller'));
 
 app.use(notFound);
 app.use(errorHandler);
