@@ -1,0 +1,46 @@
+<header class="app-header">
+  <div class="container-xl d-flex align-items-center gap-2">
+    <a routerLink="/home" class="brand d-none d-lg-flex"><span class="brand-mark"><i class="bi bi-bag-heart-fill"></i></span>{{ cfg.config().platformName }}</a>
+    <button class="shop-chip" (click)="shopsOpen.set(true)" aria-label="Change shop">
+      @if (auth.activeShop()?.shopImage) { <img [src]="auth.activeShop()!.shopImage" alt="" /> } @else { <span class="shop-chip-icon"><i class="bi bi-shop"></i></span> }
+      <span class="text-start min-w-0">
+        <span class="d-block small text-muted lh-1">Shopping at</span>
+        <span class="d-block fw-semibold text-truncate">{{ auth.activeShop()?.shopName || 'Select shop' }} <i class="bi bi-chevron-down small"></i></span>
+      </span>
+    </button>
+    <form class="header-search d-none d-md-flex" (ngSubmit)="search()">
+      <i class="bi bi-search"></i><input name="q" [(ngModel)]="q" placeholder="Search products" />
+    </form>
+    <div class="flex-grow-1 d-md-none"></div>
+    <a class="icon-btn position-relative" routerLink="/notifications" aria-label="Notifications"><i class="bi bi-bell"></i>@if (unread()) { <span class="dot-count">{{ unread() > 9 ? '9+' : unread() }}</span> }</a>
+    <a class="icon-btn position-relative d-none d-lg-inline-flex" routerLink="/wishlist" aria-label="Wishlist"><i class="bi bi-heart"></i></a>
+    <a class="icon-btn position-relative d-none d-lg-inline-flex" routerLink="/cart" aria-label="Cart"><i class="bi bi-cart3"></i>@if (cart.count()) { <span class="dot-count">{{ cart.count() }}</span> }</a>
+    <a class="icon-btn d-none d-lg-inline-flex" routerLink="/account" aria-label="Account"><i class="bi bi-person-circle"></i></a>
+  </div>
+</header>
+
+<main class="app-main container-xl"><router-outlet /></main>
+
+<nav class="bottom-nav d-lg-none">
+  <a routerLink="/home" routerLinkActive="active"><i class="bi bi-house"></i><span>Home</span></a>
+  <a routerLink="/search" routerLinkActive="active"><i class="bi bi-search"></i><span>Search</span></a>
+  <a routerLink="/cart" routerLinkActive="active" class="position-relative"><i class="bi bi-cart3"></i><span>Cart</span>@if (cart.count()) { <span class="dot-count">{{ cart.count() }}</span> }</a>
+  <a routerLink="/orders" routerLinkActive="active"><i class="bi bi-bag-check"></i><span>Orders</span></a>
+  <a routerLink="/account" routerLinkActive="active"><i class="bi bi-person"></i><span>Account</span></a>
+</nav>
+
+<app-sheet [open]="shopsOpen()" title="My shops · मेरी दुकानें" (closed)="shopsOpen.set(false)">
+  <div class="list-group">
+    @for (s of auth.shops(); track s._id) {
+      <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3" (click)="switchShop(s._id)">
+        @if (s.shopImage) { <img [src]="s.shopImage" class="shop-thumb" alt="" /> } @else { <span class="shop-thumb shop-thumb-icon"><i class="bi bi-shop"></i></span> }
+        <span class="flex-grow-1 text-start">
+          <span class="d-block fw-semibold">{{ s.shopName }}</span>
+          <small class="text-muted">{{ s.tahsil || s.tahsilId?.name }}@if (s.ratingCount) { · ⭐ {{ s.rating }} ({{ s.ratingCount }}) }</small>
+        </span>
+        @if (s._id === auth.activeSellerId()) { <i class="bi bi-check-circle-fill text-primary fs-5"></i> }
+      </button>
+    }
+  </div>
+  <p class="small text-muted mt-3 mb-0">You can shop only from stores that added your number. Ask a shopkeeper to add you to see their shop here.</p>
+</app-sheet>

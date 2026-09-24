@@ -8,6 +8,7 @@ const config = require('../config');
 const logger = require('../config/logger');
 const { connectDB, disconnectDB } = require('../config/db');
 const { generateId } = require('../utils/ids');
+const { refreshRatings } = require('../services/rating.service');
 const {
   Admin, PlatformSettings, District, Tahsil, Category, SubCategory, Seller, User, Customer,
   Product, Order, Payment, Dispute, Review,
@@ -198,8 +199,13 @@ async function seedDemo(admin) {
     }
     if (orderStatus === 'Delivered' && Math.random() < 0.4 && !isPos) {
       await Review.create({ userId: user._id, orderId: order._id, sellerId: seller._id, productId: items[0].productId, ratingType: 'Product', rating: randInt(3, 5), reviewText: rand(['बहुत अच्छा! 👍', 'Good quality', 'Value for money', 'Fast delivery']), createdAt });
+      await Review.create({ userId: user._id, orderId: order._id, sellerId: seller._id, ratingType: 'Seller', rating: randInt(3, 5), reviewText: rand(['Helpful shopkeeper', 'Quick delivery', 'Trusted shop 🙏', '']), createdAt });
     }
   }
+  // Ratings shown in the apps are always computed from the stored reviews
+  for (const s of sellers) await refreshRatings({ sellerId: s._id });
+  for (const p of products) await refreshRatings({ productId: p._id });
+
   // One failed payment for alerts
   await Payment.create({ transactionId: await generateId('TXN'), userId: users[0]._id, sellerId: sellers[0]._id, type: 'Payment', amount: 590, method: 'Online', status: 'Failed', failureReason: 'UPI timeout' });
 

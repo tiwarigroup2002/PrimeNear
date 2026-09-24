@@ -115,3 +115,25 @@ cancelling a paid app order refunds it and restocks; products disabled by an adm
 bank detail changes notify the admins; maintenance mode returns `503` to the seller app.
 **Counter bills (POS)** are paid to the seller directly (cash or UPI), so they are never part of platform payouts;
 their commission is only recovered when *Charge commission on cash orders* is enabled.
+
+## User API (`/api/user`)
+
+Login is by **mobile + OTP** and is allowed only when at least one active shop has added the number as a customer
+(otherwise a Hindi/English "ask your shopkeeper to add you" message). Each user always has one *active shop*;
+the catalog, home page and cart work on that shop.
+
+- `GET config` · `POST auth/send-otp`, `POST auth/verify-otp`, `GET auth/me`, `POST auth/logout`
+- `profile` (+ `upload-image`, `preferences`), `location/update`, `dashboard`, `addresses` (+ `set-default`), `notifications`
+- `home`, `sellers` (+ `switch`, `:id/profile`, `:id/reviews`), `categories`, `products` (search, category, price, rating,
+  in-stock filters, sort), `products/:id`, `wishlist`
+- `cart` (+ `add-item`, `update-item`, `remove-item/:id`, `clear`) — live prices, stock problems per line, delivery charge
+- `orders/create` → Cash: order placed · Online: Razorpay order (`payment.gateway = razorpay`) or a test payment
+  (`gateway = mock`, only when Razorpay keys are missing and not in production); `orders/verify-payment`,
+  `orders/:id/{payment-failed,retry-payment,cancel,return,return-status,track,reorder,reviews,invoice}`
+- `reviews` (shop + product stars, optional photos), `invoices` (+ `download` PDF), `support` tickets (+ comments)
+- `POST /api/payments/razorpay/webhook` confirms `payment.captured` even if the browser closed before verification
+
+Rules: the cart holds products of one shop only (adding from another shop empties it); unpaid online orders are hidden
+from the seller and cancelled automatically after 30 minutes (stock released); users can cancel until the order is packed
+(paid orders are refunded); returns can be requested for 7 days after delivery and are approved/rejected by the shop
+(approval refunds and restocks); ratings are recomputed from visible reviews.

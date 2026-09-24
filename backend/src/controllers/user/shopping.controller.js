@@ -117,6 +117,7 @@ async function listOrders(req, res) {
   if (tab === 'active') filter.orderStatus = { $in: ['Pending', 'Confirmed', 'Packed', 'Shipped'] };
   else if (tab === 'completed') filter.orderStatus = { $in: ['Delivered', 'Returned'] };
   else if (tab === 'cancelled') filter.orderStatus = 'Cancelled';
+  else if (tab === 'store') filter.source = 'POS'; // bills made at the shop counter
   if (req.query.includeStore === 'true') delete filter.source; // counter bills too
   const [items, total] = await Promise.all([
     Order.find(filter).sort({ createdAt: -1 }).skip(p.skip).limit(p.limit).populate('sellerId', 'shopName shopImage').select('-notes -statusHistory'),
