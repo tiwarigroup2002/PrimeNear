@@ -105,7 +105,7 @@ export class SettingsComponent implements OnInit {
 
   saveCommission() {
     const c = this.commission;
-    this.save('/settings/commission', { defaultCommission: Number(c.defaultCommission), commissionType: c.commissionType, payoutFrequency: c.payoutFrequency, payoutDelayDays: Number(c.payoutDelayDays), chargeCommissionOnCash: c.chargeCommissionOnCash });
+    this.save('/settings/commission', { defaultCommission: 0, commissionType: 'Percentage', payoutFrequency: c.payoutFrequency, payoutDelayDays: Number(c.payoutDelayDays), chargeCommissionOnCash: false });
   }
 
   addSlab() {

@@ -167,7 +167,7 @@ describe('Customers, bills & orders', () => {
     const c = await Customer.findById(customerId);
     expect(c.totalOrders).toBe(1);
     const detail = await S(token).get(`/invoices/${invoice._id}`).expect(200);
-    expect(detail.body.data.whatsappText).toMatch(/कुल राशि: ₹1,750/);
+    expect(detail.body.data.whatsappText).toMatch(/Total amount: ₹1,750/);
     const share = await S(token).post(`/invoices/${invoice._id}/share`).send({ channel: 'whatsapp' }).expect(200);
     expect(share.body.data.url).toMatch(/^https:\/\/wa\.me\/919827055555/);
     const pdf = await S(token).get(`/invoices/${invoice.invoiceId}/pdf`).expect(200);

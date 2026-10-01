@@ -13,7 +13,7 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge.compo
       <div class="card auth-card shadow-sm">
         <div class="card-body p-4">
           <h1 class="h5 fw-bold text-center">Select your shop</h1>
-          <p class="text-muted small text-center">अपनी दुकान चुनें</p>
+          <p class="text-muted small text-center">Choose your shop</p>
           <div class="list-group">
             @for (s of auth.shops(); track s._id) {
               <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3" [disabled]="s.status !== 'Active' || busy()" (click)="pick(s._id)">

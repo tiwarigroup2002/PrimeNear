@@ -10,7 +10,7 @@ import { InrPipe, PageHeaderComponent, PaginationComponent, StateComponent } fro
   selector: 'app-inventory',
   imports: [DatePipe, FormsModule, RouterLink, InrPipe, PageHeaderComponent, PaginationComponent, StateComponent],
   template: `
-    <app-page-header title="Inventory" subtitle="Stock overview · स्टॉक" />
+    <app-page-header title="Inventory" subtitle="Stock overview" />
     <app-state [loading]="!d()" />
     @if (d(); as d) {
       <div class="row g-2 mb-3 text-center">

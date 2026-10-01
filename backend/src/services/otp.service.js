@@ -40,7 +40,7 @@ async function sendOtp(mobileNumber, purpose) {
     { upsert: true }
   );
 
-  await sms.sendSms(mobileNumber, `${code} आपका PrimeNear OTP है। यह 5 मिनट तक मान्य है। किसी से साझा न करें।`);
+  await sms.sendSms(mobileNumber, `${code} is your PrimeNear OTP. Valid for 5 minutes. Do not share it with anyone.`);
   const result = { expiresIn: TTL_MS / 1000, resendIn: RESEND_AFTER_MS / 1000 };
   if (!config.isProd && !sms.isConfigured()) result.devOtp = code;
   return result;

@@ -47,7 +47,7 @@ import { InrPipe, PageHeaderComponent, StateComponent } from '../../shared';
             <div class="d-flex justify-content-between fw-bold fs-6 border-top mt-1 pt-1"><span>TOTAL</span><span>{{ i.totalAmount | inr }}</span></div>
           </div>
           @if (i.notes) { <div class="small mt-3"><strong>Note:</strong> {{ i.notes }}</div> }
-          <div class="text-center small mt-4">धन्यवाद! Thank you for shopping with us 🙏</div>
+          <div class="text-center small mt-4">Thank you for shopping with us 🙏</div>
         </div>
       </div>
       @if (i.orderId) { <div class="text-center mt-3 no-print"><a [routerLink]="['/orders', i.orderId._id]" class="small">View order {{ i.orderId.orderId }}</a></div> }

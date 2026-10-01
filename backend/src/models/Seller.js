@@ -25,8 +25,10 @@ const sellerSchema = new mongoose.Schema(
       bankName: String,
     },
     upiId: String,
-    // null => platform default commission applies
-    commissionRate: { type: Number, min: 0, max: 100, default: null },
+    // Kept for old orders. New sales do not charge a platform cut — the shop keeps the full amount.
+    commissionRate: { type: Number, min: 0, max: 100, default: 0 },
+    // Default is the shop's own tahsil. When true, the shop can sell in every tahsil of districtIds.
+    sellsAcrossDistricts: { type: Boolean, default: false },
     // Amount to recover from the next payout (e.g. refunds on already settled orders)
     pendingDeduction: { type: Number, default: 0 },
     status: { type: String, enum: ACCOUNT_STATUS, default: 'Active', index: true },

@@ -23,7 +23,7 @@ import { ChartComponent, InrPipe, PageHeaderComponent, SheetComponent, StateComp
     @if (s(); as s) {
       <div class="row g-2 mb-3">
         <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body"><div class="small text-muted">Sales</div><div class="fs-5 fw-bold">{{ s.revenue | inr: 0 }}</div><div class="cell-sub">{{ s.orders }} orders</div></div></div></div>
-        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body"><div class="small text-muted">Est. profit</div><div class="fs-5 fw-bold" [class.text-success]="s.estimatedProfit > 0">{{ s.estimatedProfit | inr: 0 }}</div><div class="cell-sub">after commission</div></div></div></div>
+        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body"><div class="small text-muted">Est. profit</div><div class="fs-5 fw-bold" [class.text-success]="s.estimatedProfit > 0">{{ s.estimatedProfit | inr: 0 }}</div><div class="cell-sub">shop keeps the full sale</div></div></div></div>
         <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body"><div class="small text-muted">Avg. order</div><div class="fs-5 fw-bold">{{ s.averageOrderValue | inr: 0 }}</div><div class="cell-sub">{{ s.customers }} customers</div></div></div></div>
         <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body"><div class="small text-muted">GST collected</div><div class="fs-5 fw-bold">{{ s.gstCollected | inr: 0 }}</div><div class="cell-sub">commission {{ s.commission | inr: 0 }}</div></div></div></div>
       </div>

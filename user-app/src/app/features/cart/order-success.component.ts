@@ -10,7 +10,7 @@ import { InrPipe } from '../../shared';
     <div class="text-center py-4" style="max-width:460px;margin:0 auto">
       <div class="success-mark"><i class="bi bi-check-lg"></i></div>
       <h1 class="h4 fw-bold mt-3 mb-1">Order placed!</h1>
-      <p class="text-muted">ऑर्डर सफलतापूर्वक हो गया। दुकानदार जल्द ही इसे कन्फर्म करेगा।</p>
+      <p class="text-muted">Your order was placed successfully. The shop will confirm it soon.</p>
       @if (o(); as o) {
         <div class="card text-start mb-3"><div class="card-body">
           <dl class="dl-grid small mb-0">

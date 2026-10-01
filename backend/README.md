@@ -52,9 +52,8 @@ tests/           API tests (node:test + supertest)
 - **Seller = shop.** One owner mobile number may own several shops (seller app will show a shop picker).
 - **User ↔ Seller link** lives in the `Customer` collection. A user can only use the user app with sellers they are linked to. Admins can link users manually or in bulk from CSV (`mobileNumber,name,sellerName,customerType`).
 - **Revenue** = orders whose payment is completed (online paid or cash collected) and not cancelled, minus refunds.
-- **Commission** = order value × seller commission % (seller override, else platform default).
-- **Payouts**: online orders become payable `payoutDelayDays` after delivery. Net = order value − refunds − commission.
-  If *Charge commission on cash orders* is enabled, commission on cash / COD orders is deducted from the payout.
+- **No platform commission.** The shop keeps the full sale. Online payments are collected in the platform Razorpay account and paid to the shop in full after the holding period. Cash and counter bills stay with the shop.
+- **Payouts**: online orders become payable `payoutDelayDays` after delivery. Net = order value − refunds.
   Refunds on already-paid orders are recovered from the next payout (`seller.pendingDeduction`).
   Payout flow: `Pending → Processing → Completed (UTR required)`; `Failed → retry`; `Rejected` releases the orders.
   Transfers are done manually by the admin (bank/UPI); RazorpayX automation can be added later.

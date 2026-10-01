@@ -12,7 +12,7 @@ const { round2 } = require('./metrics');
  * the invoice and stock movements.
  * items: [{ productId, quantity }]; customerId optional (walk-in customer otherwise).
  */
-async function createBill(seller, { customerId, walkInName, walkInMobile, items, paymentMethod, discount = 0, notes }) {
+async function createBill(seller, { customerId, walkInName, walkInMobile, items, paymentMethod, discount = 0, deliveryCharge = 0, notes }) {
   if (!items?.length) throw ApiError.badRequest('Add at least one product');
   const merged = new Map();
   items.forEach((i) => merged.set(String(i.productId), (merged.get(String(i.productId)) || 0) + Number(i.quantity)));
@@ -38,8 +38,9 @@ async function createBill(seller, { customerId, walkInName, walkInMobile, items,
   const gstAmount = round2(lines.reduce((s, l) => s + l.gst, 0));
   const gross = round2(subtotal + gstAmount);
   const disc = round2(Math.max(0, Number(discount) || 0));
+  const delivery = round2(Math.max(0, Number(deliveryCharge) || 0));
   if (disc > gross) throw ApiError.badRequest('Discount cannot be more than the bill amount');
-  const finalAmount = round2(gross - disc);
+  const finalAmount = round2(gross - disc + delivery);
 
   const [settings, rate] = await Promise.all([getSettings(), commissionRateFor(seller)]);
   const orderId = await generateId('ORD');
@@ -65,6 +66,7 @@ async function createBill(seller, { customerId, walkInName, walkInMobile, items,
     subtotal,
     gstAmount,
     discount: disc,
+    deliveryCharge: delivery,
     finalAmount,
     paymentMethod,
     paymentStatus: 'Completed',

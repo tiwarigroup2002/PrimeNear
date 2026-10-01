@@ -32,10 +32,11 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
   },
 ];
 
-/** Bottom tab bar on phones. The middle item is the big "bill" button. */
+/** Bottom tab bar: Home, Add product, Invoices, Orders, Customers. */
 export const TABS: NavItem[] = [
   { label: 'Home', icon: 'bi-house', link: '/dashboard' },
+  { label: 'Add', icon: 'bi-plus-square', link: '/products/new' },
+  { label: 'Invoices', icon: 'bi-receipt', link: '/invoices' },
   { label: 'Orders', icon: 'bi-bag-check', link: '/orders' },
-  { label: 'Bill', icon: 'bi-plus-lg', link: '/billing' },
-  { label: 'Products', icon: 'bi-box-seam', link: '/products' },
+  { label: 'Customers', icon: 'bi-people', link: '/customers' },
 ];

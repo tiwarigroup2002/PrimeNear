@@ -23,7 +23,7 @@ async function findCustomer(req) {
  * Adds a customer to the shop. This is what lets the person log in to the user app
  * and see this shop's products.
  */
-async function addCustomer(seller, { mobileNumber, name, email, address, customerType }) {
+async function addCustomer(seller, { mobileNumber, name, email, address }) {
   let user = await User.findOne({ mobileNumber });
   if (user?.status === 'Blocked') throw ApiError.badRequest('This number is blocked on the platform. Contact support.');
   if (!user) user = await User.create({ mobileNumber, name: name || undefined, email: email || undefined });
@@ -36,7 +36,7 @@ async function addCustomer(seller, { mobileNumber, name, email, address, custome
     await user.save();
   }
   if (await Customer.exists({ sellerId: seller._id, userId: user._id })) throw ApiError.conflict('This customer is already added to your shop');
-  return Customer.create({ sellerId: seller._id, userId: user._id, mobileNumber, name: name || user.name, email, address, customerType, linkedBy: 'Seller' });
+  return Customer.create({ sellerId: seller._id, userId: user._id, mobileNumber, name: name || user.name, email, address, customerType: 'Retail', linkedBy: 'Seller' });
 }
 
 async function list(req, res) {
@@ -83,7 +83,10 @@ async function getOne(req, res) {
 
 async function update(req, res) {
   const customer = await findCustomer(req);
-  Object.assign(customer, req.body);
+  const body = { ...req.body };
+  delete body.customerType;
+  Object.assign(customer, body);
+  customer.customerType = 'Retail';
   await customer.save();
   return ok(res, customer, 'Customer updated');
 }
@@ -113,7 +116,7 @@ async function bulkLink(req, res) {
     const mobileNumber = normalise(r.mobilenumber || r.mobile || r.phone);
     try {
       if (!MOBILE_RX.test(mobileNumber)) throw new Error('Invalid mobile number');
-      await addCustomer(req.seller, { mobileNumber, name: r.name, customerType: /wholesale/i.test(r.customertype || '') ? 'Wholesale' : 'Retail' });
+      await addCustomer(req.seller, { mobileNumber, name: r.name });
       linkedCount += 1;
     } catch (err) {
       errors.push({ row: i + 2, mobileNumber, message: err.message });

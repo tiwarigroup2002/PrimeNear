@@ -169,6 +169,7 @@ function billSchema() {
     items: Joi.array().items(Joi.object({ productId: objectId().required(), quantity: Joi.number().integer().min(1).max(100000).required() })).min(1).max(200).required(),
     paymentMethod: Joi.string().valid('Cash', 'Online').required(),
     discount: Joi.number().min(0).default(0),
+    deliveryCharge: Joi.number().min(0).default(0),
     notes: Joi.string().allow('').max(500),
   });
 }

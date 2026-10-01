@@ -16,7 +16,7 @@ const platformSettingsSchema = new mongoose.Schema(
       timezone: { type: String, default: 'Asia/Kolkata' },
     },
     commissionSettings: {
-      defaultCommission: { type: Number, default: 5 },
+      defaultCommission: { type: Number, default: 0 },
       commissionType: { type: String, enum: ['Percentage', 'Fixed'], default: 'Percentage' },
       payoutFrequency: { type: String, enum: ['Daily', 'Weekly', 'Monthly'], default: 'Weekly' },
       // Online orders become eligible for payout this many days after delivery

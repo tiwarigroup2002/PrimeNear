@@ -16,11 +16,10 @@ import { PageHeaderComponent, StatusBadgeComponent } from '../../shared';
         <div class="card mb-3">
           <div class="card-header"><span class="card-title">1. Download template</span></div>
           <div class="card-body small">
-            <p>Columns: <code>mobileNumber, name, sellerName, customerType</code></p>
+            <p>Columns: <code>mobileNumber, name, sellerName</code></p>
             <ul class="ps-3">
               <li><b>mobileNumber</b> – 10 digits (+91 / 0 prefix allowed)</li>
               <li><b>sellerName</b> – exact shop name (case-insensitive)</li>
-              <li><b>customerType</b> – Retail / Wholesale (optional)</li>
             </ul>
             <button class="btn btn-sm btn-outline-primary" (click)="template()"><i class="bi bi-download me-1"></i>Download CSV template</button>
           </div>

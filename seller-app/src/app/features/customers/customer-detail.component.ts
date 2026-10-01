@@ -20,7 +20,7 @@ import { InrPipe, PageHeaderComponent, SheetComponent, StateComponent, StatusBad
       <div class="card mb-3"><div class="card-body d-flex align-items-center gap-3">
         <span class="shop-avatar shop-avatar-initial" style="width:56px;height:56px;border-radius:50%;font-size:1.4rem">{{ (d.customer.name || '?').slice(0, 1).toUpperCase() }}</span>
         <div class="flex-grow-1 min-w-0">
-          <div class="fw-semibold fs-5">{{ d.customer.name || 'Customer' }} <span class="badge text-bg-light border">{{ d.customer.customerType }}</span></div>
+          <div class="fw-semibold fs-5">{{ d.customer.name || 'Customer' }}</div>
           <div class="text-muted small">{{ d.customer.mobileNumber }} @if (d.customer.email) { · {{ d.customer.email }} }</div>
           @if (d.customer.address) { <div class="small">{{ d.customer.address }}</div> }
           <div class="small text-muted">Customer since {{ d.customer.createdAt | date: 'MMM y' }}</div>
@@ -57,7 +57,6 @@ import { InrPipe, PageHeaderComponent, SheetComponent, StateComponent, StatusBad
         <label class="form-label">Name</label><input class="form-control mb-2" [(ngModel)]="edit.name" />
         <label class="form-label">Email</label><input class="form-control mb-2" type="email" [(ngModel)]="edit.email" />
         <label class="form-label">Address</label><textarea class="form-control mb-2" rows="2" [(ngModel)]="edit.address"></textarea>
-        <label class="form-label">Type</label><select class="form-select" [(ngModel)]="edit.customerType"><option>Retail</option><option>Wholesale</option></select>
         <div sheet-footer class="sheet-footer"><button class="btn btn-light" (click)="editOpen.set(false)">Cancel</button><button class="btn btn-primary" (click)="save()">Save</button></div>
       </app-sheet>
     }
@@ -84,7 +83,7 @@ export class CustomerDetailComponent implements OnInit {
 
   openEdit() {
     const c = this.d().customer;
-    this.edit = { name: c.name || '', email: c.email || '', address: c.address || '', customerType: c.customerType };
+    this.edit = { name: c.name || '', email: c.email || '', address: c.address || '' };
     this.editOpen.set(true);
   }
 

@@ -65,7 +65,11 @@
                   <label class="btn btn-sm btn-outline-primary" [for]="'d' + d._id">{{ d.name }}</label>
                 }
               </div>
-              <div class="form-text">If none is selected, the tahsil's district is used.</div>
+              <div class="form-text">By default the shop sells only in its tahsil. Turn on district selling for a bigger shop.</div>
+              <div class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" id="whole" formControlName="sellsAcrossDistricts" />
+                <label class="form-check-label" for="whole">Sell in every tahsil of the selected districts</label>
+              </div>
             </div>
           </div>
         </div>
@@ -112,20 +116,8 @@
         </div>
 
         <div class="card mb-3">
-          <div class="card-header"><span class="card-title">Commission</span></div>
-          <div class="card-body">
-            <div class="form-check form-switch mb-2">
-              <input class="form-check-input" type="checkbox" id="defc" formControlName="useDefaultCommission" />
-              <label class="form-check-label" for="defc">Use platform default ({{ defaultCommission() }}%)</label>
-            </div>
-            @if (!form.getRawValue().useDefaultCommission) {
-              <div class="input-group">
-                <input type="number" class="form-control" formControlName="commissionRate" min="0" max="100" step="0.5" [class.is-invalid]="invalid('commissionRate')" />
-                <span class="input-group-text">%</span>
-              </div>
-            }
-            @if (!auth.can('sellers.commission')) { <div class="form-text">You do not have permission to change commission.</div> }
-          </div>
+          <div class="card-header"><span class="card-title">Money</span></div>
+          <div class="card-body small text-muted">The platform does not take a commission. The shop keeps every rupee. Online payments land in the platform Razorpay account and are paid to the shop in full.</div>
         </div>
 
         <div class="card mb-3" formGroupName="settings">

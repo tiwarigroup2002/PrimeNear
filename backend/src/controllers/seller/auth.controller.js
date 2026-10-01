@@ -5,7 +5,7 @@ const { sendOtp, verifyOtp } = require('../../services/otp.service');
 const { signOwnerToken, signShopToken } = require('../../middleware/sellerAuth');
 const { getSettings, commissionRateFor } = require('../../services/settings.service');
 
-const NOT_REGISTERED = 'यह नंबर किसी दुकान से पंजीकृत नहीं है। This mobile number is not registered as a seller. Please contact the admin.';
+const NOT_REGISTERED = 'This mobile number is not registered as a seller. Please contact the admin.';
 
 async function shopsFor(mobileNumber) {
   return Seller.find({ mobileNumber, status: { $ne: 'Deleted' } })

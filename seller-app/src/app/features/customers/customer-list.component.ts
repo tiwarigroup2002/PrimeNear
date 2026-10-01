@@ -24,7 +24,6 @@ import { InrPipe, PageHeaderComponent, PaginationComponent, SheetComponent, Stat
         <input class="form-control" placeholder="Name or mobile" [(ngModel)]="list.filters['search']" (keyup.enter)="list.apply()" />
       </div>
       <select class="form-select w-auto" [(ngModel)]="list.filters['sortBy']" (change)="list.apply()"><option value="">Newest</option><option value="spent">Top spenders</option><option value="recent">Recent buyers</option><option value="name">Name</option></select>
-      <select class="form-select w-auto" [(ngModel)]="list.filters['customerType']" (change)="list.apply()"><option value="">All</option><option>Retail</option><option>Wholesale</option></select>
     </div>
     <div class="card">
       <div class="m-list">
@@ -32,7 +31,7 @@ import { InrPipe, PageHeaderComponent, PaginationComponent, SheetComponent, Stat
           <a class="m-item" [routerLink]="['/customers', c._id]">
             <span class="shop-avatar shop-avatar-initial" style="border-radius: 50%">{{ (c.name || '?').slice(0, 1).toUpperCase() }}</span>
             <span class="flex-grow-1 min-w-0">
-              <span class="d-block fw-semibold small text-truncate">{{ c.name || 'Customer' }} @if (c.customerType === 'Wholesale') { <span class="badge text-bg-info">Wholesale</span> }</span>
+              <span class="d-block fw-semibold small text-truncate">{{ c.name || 'Customer' }}</span>
               <span class="cell-sub d-block">{{ c.mobileNumber }}</span>
               <span class="cell-sub">{{ c.totalOrders }} bills · last {{ c.lastPurchaseDate ? (c.lastPurchaseDate | timeAgo) : 'never' }}</span>
             </span>
@@ -49,10 +48,8 @@ import { InrPipe, PageHeaderComponent, PaginationComponent, SheetComponent, Stat
       <div class="input-group mb-3"><span class="input-group-text">+91</span><input class="form-control" maxlength="10" inputmode="numeric" [(ngModel)]="form.mobileNumber" /></div>
       <label class="form-label">Name</label>
       <input class="form-control mb-3" [(ngModel)]="form.name" />
-      <div class="row g-2">
-        <div class="col-6"><label class="form-label">Type</label><select class="form-select" [(ngModel)]="form.customerType"><option>Retail</option><option>Wholesale</option></select></div>
-        <div class="col-6"><label class="form-label">Email</label><input class="form-control" type="email" [(ngModel)]="form.email" /></div>
-      </div>
+      <label class="form-label">Email</label>
+      <input class="form-control mb-3" type="email" [(ngModel)]="form.email" />
       <label class="form-label mt-3">Address</label>
       <textarea class="form-control" rows="2" [(ngModel)]="form.address"></textarea>
       <div sheet-footer class="sheet-footer"><button class="btn btn-light" (click)="addOpen.set(false)">Cancel</button><button class="btn btn-primary" (click)="save()" [disabled]="saving()">Add customer</button></div>
@@ -63,17 +60,17 @@ export class CustomerListComponent implements OnInit {
   private api = inject(ApiService);
   private toast = inject(ToastService);
   private router = inject(Router);
-  list = new PagedList<Customer>('/customers', { search: '', sortBy: '', customerType: '' });
+  list = new PagedList<Customer>('/customers', { search: '', sortBy: '' });
   addOpen = signal(!!inject(ActivatedRoute).snapshot.queryParamMap.get('add'));
   saving = signal(false);
-  form = { mobileNumber: '', name: '', email: '', address: '', customerType: 'Retail' };
+  form = { mobileNumber: '', name: '', email: '', address: '' };
 
   ngOnInit() {
     this.list.load();
   }
 
   openAdd() {
-    this.form = { mobileNumber: '', name: '', email: '', address: '', customerType: 'Retail' };
+    this.form = { mobileNumber: '', name: '', email: '', address: '' };
     this.addOpen.set(true);
   }
 

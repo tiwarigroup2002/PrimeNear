@@ -52,8 +52,8 @@ async function announceNewProduct(seller, product) {
     userIds.map((id) => ({
       recipientType: 'User',
       recipientId: id,
-      title: `🆕 नया उत्पाद: ${product.name} ₹${product.finalPrice}`,
-      message: `${seller.shopName} से`,
+      title: `🆕 New product: ${product.name} ₹${product.finalPrice}`,
+      message: `From ${seller.shopName}`,
       type: 'NewProduct',
       link: `/products/${product._id}`,
       data: { productId: product._id, sellerId: seller._id },

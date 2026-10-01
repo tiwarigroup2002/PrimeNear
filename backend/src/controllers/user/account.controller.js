@@ -4,11 +4,11 @@ const { fileUrl } = require('../../middleware/upload');
 const { User, Customer, LoginHistory, Tahsil, Notification } = require('../../models');
 const { sendOtp, verifyOtp } = require('../../services/otp.service');
 const { signUserToken } = require('../../middleware/userAuth');
-const { linkedSellers } = require('../../services/shop-access.service');
+const { linkedSellers, reachableShops } = require('../../services/shop-access.service');
 const { getSettings } = require('../../services/settings.service');
 const { getPagination, paginated } = require('../../utils/pagination');
 
-const NOT_LINKED = 'अरे भाई! आप अभी किसी दुकान के ग्राहक नहीं हो। विक्रेता से अपना नंबर दर्ज करवाएं। (You are not registered with any shop yet. Ask your shopkeeper to add your number.)';
+const NOT_LINKED = 'You are not registered with any shop yet. Ask your shopkeeper to add your number.';
 
 async function hasActiveLink(userId) {
   return (await linkedSellers(userId)).length > 0;
@@ -39,9 +39,14 @@ async function verify(req, res) {
 }
 
 async function me(req, res) {
-  const sellers = await linkedSellers(req.userId);
+  const reach = await reachableShops(req.user);
+  const sellers = reach.locationRequired ? reach.all : reach.sellers;
+  if (sellers.length && !sellers.some((s) => String(s._id) === String(req.user.currentActiveSellerId))) {
+    req.user.currentActiveSellerId = sellers[0]._id;
+    await req.user.save();
+  }
   await req.user.populate('tahsilId', 'name');
-  return ok(res, { user: req.user, sellers, activeSellerId: req.user.currentActiveSellerId });
+  return ok(res, { user: req.user, sellers, activeSellerId: req.user.currentActiveSellerId, tahsilName: reach.tahsilName, locationRequired: reach.locationRequired });
 }
 
 async function logout(req, res) {
@@ -90,14 +95,14 @@ async function updateLocation(req, res) {
     if (d <= (t.radius || 5) && (!best || d < best.d)) best = { t, d };
   });
   req.user.lastLocation = { latitude, longitude, updatedAt: new Date() };
-  if (best) req.user.tahsilId = best.t._id;
+  req.user.tahsilId = best ? best.t._id : null;
   await req.user.save();
   return ok(res, {
     tahsilId: best?.t._id || null,
     tahsilName: best ? `${best.t.name}, ${best.t.districtId?.name}` : null,
     distanceKm: best ? Math.round(best.d * 10) / 10 : null,
     inServiceArea: Boolean(best),
-    linkedSellers: await linkedSellers(req.userId),
+    linkedSellers: (await reachableShops(req.user)).sellers,
   });
 }
 

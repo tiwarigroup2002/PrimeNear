@@ -17,14 +17,14 @@ import { MOBILE_PATTERN } from '../../shared/validators/patterns';
           <div class="text-center mb-4">
             <span class="brand-mark text-white fs-3 mb-2" style="width:56px;height:56px"><i class="bi bi-shop"></i></span>
             <h1 class="h4 fw-bold mb-1">{{ cfg.config().platformName }} Seller</h1>
-            <p class="text-muted small mb-0">अपनी दुकान संभालें · Manage your shop</p>
+            <p class="text-muted small mb-0">Manage your shop</p>
           </div>
           @if (notice()) { <div class="alert alert-warning small py-2">{{ notice() }}</div> }
           @if (error()) { <div class="alert alert-danger small py-2">{{ error() }}</div> }
 
           @if (step() === 'mobile') {
             <form (ngSubmit)="send()">
-              <label class="form-label" for="mobile">Mobile number / मोबाइल नंबर</label>
+              <label class="form-label" for="mobile">Mobile number</label>
               <div class="input-group input-group-lg mb-3">
                 <span class="input-group-text">+91</span>
                 <input id="mobile" name="mobile" class="form-control" [(ngModel)]="mobile" maxlength="10" inputmode="numeric" autocomplete="tel-national" placeholder="98765 43210" autofocus />

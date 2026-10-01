@@ -118,11 +118,12 @@ async function getOne(req, res) {
 
 async function create(req, res) {
   const body = { ...req.body };
-  const { districtIds } = await validateLocation(body.tahsilId, body.districtIds);
+  const { districtIds, tahsil } = await validateLocation(body.tahsilId, body.districtIds);
   body.districtIds = districtIds;
   if (await Seller.exists({ shopName: new RegExp(`^${body.shopName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') })) {
     throw ApiError.conflict('A shop with this name already exists');
   }
+  body.sellsAcrossDistricts = Boolean(body.sellsAcrossDistricts) || districtIds.some((id) => String(id) !== String(tahsil.districtId));
   const seller = await Seller.create({ ...body, createdBy: req.admin._id });
   await audit(req, { action: 'Created', entityType: 'Seller', entityId: seller._id, newValue: seller });
   return created(res, seller, 'Seller created');
@@ -135,6 +136,8 @@ async function update(req, res) {
   if (body.tahsilId || body.districtIds) {
     const loc = await validateLocation(body.tahsilId || seller.tahsilId, body.districtIds || seller.districtIds);
     body.districtIds = loc.districtIds;
+    const homeDistrict = String(loc.tahsil.districtId);
+    if (body.districtIds.some((id) => String(id) !== homeDistrict)) body.sellsAcrossDistricts = true;
   }
   if ('commissionRate' in body && !effectivePermissions(req.admin).includes('sellers.commission')) {
     throw ApiError.forbidden('You cannot change seller commission');
@@ -205,10 +208,10 @@ async function remove(req, res) {
 async function updateCommission(req, res) {
   const seller = await findSeller(req.params.sellerId);
   const old = seller.commissionRate;
-  seller.commissionRate = req.body.commissionRate;
+  seller.commissionRate = 0;
   await seller.save();
-  await audit(req, { action: 'CommissionChanged', entityType: 'Seller', entityId: seller._id, oldValue: { commissionRate: old }, newValue: { commissionRate: seller.commissionRate } });
-  return ok(res, { newRate: await commissionRateFor(seller), commissionRate: seller.commissionRate }, 'Commission updated');
+  await audit(req, { action: 'CommissionChanged', entityType: 'Seller', entityId: seller._id, oldValue: { commissionRate: old }, newValue: { commissionRate: 0 }, details: 'Platform does not take a cut' });
+  return ok(res, { newRate: 0, commissionRate: 0 }, 'The shop keeps the full amount. The platform does not take a commission.');
 }
 
 async function assignDistricts(req, res) {
@@ -216,6 +219,7 @@ async function assignDistricts(req, res) {
   const { districtIds } = await validateLocation(seller.tahsilId, req.body.districtIds);
   const old = seller.districtIds;
   seller.districtIds = districtIds;
+  seller.sellsAcrossDistricts = true;
   await seller.save();
   await seller.populate('districtIds', 'name');
   await audit(req, { action: 'DistrictsAssigned', entityType: 'Seller', entityId: seller._id, oldValue: { districtIds: old }, newValue: { districtIds } });

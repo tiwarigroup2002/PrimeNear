@@ -29,8 +29,8 @@ async function takeStock(sellerId, items, { reason, refType, refId, byType = 'Se
   for (const { product } of done) {
     if (product.stock <= (product.lowStockThreshold ?? 5)) {
       await notifySeller(sellerId, {
-        title: product.stock <= 0 ? 'स्टॉक खत्म' : 'स्टॉक कम हो गया!',
-        message: product.stock <= 0 ? `${product.name}: out of stock` : `${product.name}: सिर्फ ${product.stock} बचे`,
+        title: product.stock <= 0 ? 'Out of stock' : 'Low stock',
+        message: product.stock <= 0 ? `${product.name}: out of stock` : `${product.name}: only ${product.stock} left`,
         type: 'LowStock',
         link: `/products/${product._id}`,
       });

@@ -35,7 +35,7 @@ const userSchema = new mongoose.Schema(
     dateOfBirth: Date,
     gender: { type: String, enum: ['Male', 'Female', 'Other'] },
     preferences: {
-      language: { type: String, default: 'hi' },
+      language: { type: String, default: 'en' },
       theme: { type: String, default: 'light' },
       pushNotifications: { type: Boolean, default: true },
       emailNotifications: { type: Boolean, default: true },

@@ -40,7 +40,7 @@ async function linkUserToSeller(user, seller, { name, customerType, linkedBy = '
     userId: user._id,
     mobileNumber: user.mobileNumber,
     name: name || user.name,
-    customerType: customerType || 'Retail',
+    customerType: 'Retail',
     linkedBy,
     linkedByAdmin: adminId,
   });
@@ -189,7 +189,7 @@ async function bulkLink(req, res) {
     const mobileNumber = normaliseMobile(r.mobilenumber || r.mobile || r.phone);
     const name = r.name || '';
     const shopName = (r.sellername || r.shopname || r.seller || '').trim();
-    const customerType = /wholesale/i.test(r.customertype || '') ? 'Wholesale' : 'Retail';
+    const customerType = 'Retail';
     const out = { row: rowNo, mobileNumber, name, sellerName: shopName };
 
     if (!MOBILE_RX.test(mobileNumber)) {

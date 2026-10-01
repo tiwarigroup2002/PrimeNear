@@ -60,6 +60,7 @@ export interface Seller {
   email?: string;
   tahsilId: Ref | any;
   districtIds: (Ref | any)[];
+  sellsAcrossDistricts?: boolean;
   shopAddress: string;
   shopImage?: string;
   gstNumber?: string;

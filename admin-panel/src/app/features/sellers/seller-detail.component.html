@@ -19,7 +19,6 @@
         <div class="d-flex flex-wrap gap-2">
           <a class="btn btn-sm btn-outline-success" [href]="'https://wa.me/91' + d.seller.mobileNumber" target="_blank" rel="noopener"><i class="bi bi-whatsapp me-1"></i>WhatsApp</a>
           <a *appCan="'sellers.manage'" [routerLink]="['/sellers', id, 'edit']" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil me-1"></i>Edit</a>
-          <button *appCan="'sellers.commission'" class="btn btn-sm btn-outline-secondary" (click)="openCommission()"><i class="bi bi-percent me-1"></i>Commission</button>
           <ng-container *appCan="'sellers.manage'">
             @if (d.seller.status === 'Active') { <button class="btn btn-sm btn-outline-warning" (click)="block()"><i class="bi bi-slash-circle me-1"></i>Block</button> }
             @else { <button class="btn btn-sm btn-outline-success" (click)="unblock()"><i class="bi bi-check-circle me-1"></i>Unblock</button> }
@@ -61,7 +60,7 @@
                 <dt>Tahsil</dt><dd>{{ d.seller.tahsilId?.name }}</dd>
                 <dt>Sells in</dt><dd>@for (x of d.seller.districtIds; track x._id) { <span class="badge text-bg-light border me-1">{{ x.name }}</span> }</dd>
                 <dt>GSTIN</dt><dd>{{ d.seller.gstNumber || '—' }}</dd>
-                <dt>Commission</dt><dd>{{ d.seller.effectiveCommissionRate }}% @if (d.seller.commissionRate === null) { <span class="text-muted small">(platform default)</span> }</dd>
+                <dt>Payout</dt><dd>Shop keeps 100%. Online payments are collected by the platform and paid to the shop in full.@if (d.seller.sellsAcrossDistricts) { <span class="d-block small text-muted">Sells in every tahsil of the assigned districts.</span> }</dd>
                 <dt>Products</dt><dd>{{ d.analytics.products.total }} total · {{ d.analytics.products.active }} active · {{ d.analytics.products.outOfStock }} out of stock</dd>
                 <dt>Delivery</dt><dd>@if (d.seller.settings?.enableDelivery) { Yes · ₹{{ d.seller.settings.deliveryCharge }} (free above ₹{{ d.seller.settings.freeDeliveryAbove }}) } @else { Pickup only }</dd>
               </dl>
@@ -176,12 +175,11 @@
                 </tbody>
               }
               @case ('customers') {
-                <thead><tr><th>Customer</th><th>Type</th><th class="text-end">Orders</th><th class="text-end">Spent</th><th>Linked by</th><th>Since</th></tr></thead>
+                <thead><tr><th>Customer</th><th class="text-end">Orders</th><th class="text-end">Spent</th><th>Linked by</th><th>Since</th></tr></thead>
                 <tbody>
                   @for (c of rows(); track c._id) {
                     <tr class="row-link" [routerLink]="['/users', c.userId?._id]">
                       <td><div class="cell-title">{{ c.name || c.userId?.name || '—' }}</div><div class="cell-sub">{{ c.mobileNumber }}</div></td>
-                      <td>{{ c.customerType }}</td>
                       <td class="text-end">{{ c.totalOrders }}</td>
                       <td class="text-end">{{ c.totalSpent | inr }}</td>
                       <td>{{ c.linkedBy }}</td>

@@ -48,7 +48,7 @@
               <span class="thumb"><i class="bi bi-shop"></i></span>
               <div class="flex-grow-1 min-w-0">
                 <a [routerLink]="['/sellers', l.seller?._id]" class="fw-semibold text-decoration-none">{{ l.seller?.shopName }}</a>
-                <div class="cell-sub">{{ l.customerType }} · linked by {{ l.linkedBy }} · {{ l.linkedAt | date: 'd MMM y' }}</div>
+                <div class="cell-sub">linked by {{ l.linkedBy }} · {{ l.linkedAt | date: 'd MMM y' }}</div>
               </div>
               <app-status-badge [status]="l.seller?.status" />
               <button *appCan="'users.manage'" class="btn btn-sm btn-light text-danger" title="Remove" (click)="unlink(l)"><i class="bi bi-x-lg"></i></button>
@@ -97,8 +97,6 @@
   <app-modal [open]="linkOpen()" title="Link to another seller" (closed)="linkOpen.set(false)">
     <label class="form-label">Seller</label>
     <app-entity-select kind="seller" placeholder="Search shop..." (selected)="linkSeller = $event?._id || null" />
-    <label class="form-label mt-3">Customer type</label>
-    <select class="form-select" [(ngModel)]="linkType"><option>Retail</option><option>Wholesale</option></select>
     <div modal-footer class="modal-footer">
       <button class="btn btn-light" (click)="linkOpen.set(false)">Cancel</button>
       <button class="btn btn-primary" (click)="link()">Link user</button>

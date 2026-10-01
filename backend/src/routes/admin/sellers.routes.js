@@ -19,6 +19,7 @@ const sellerFields = {
   email: Joi.string().email().allow(''),
   tahsilId: objectId(),
   districtIds: Joi.array().items(objectId()).unique(),
+  sellsAcrossDistricts: Joi.boolean(),
   shopAddress: Joi.string().trim().min(5).max(300),
   gstNumber: Joi.string().allow('').uppercase().pattern(/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/).messages({ 'string.pattern.base': 'Invalid GST number' }),
   bankDetails,

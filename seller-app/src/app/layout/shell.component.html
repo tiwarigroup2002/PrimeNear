@@ -50,6 +50,7 @@
         @if (unread()) { <span class="badge rounded-pill bg-danger notif-count">{{ unread() > 9 ? '9+' : unread() }}</span> }
       </a>
       <a class="btn btn-icon d-none d-lg-inline-flex" routerLink="/settings" aria-label="Settings"><i class="bi bi-gear"></i></a>
+      <button class="btn btn-icon d-lg-none" (click)="moreOpen.set(true)" aria-label="Menu"><i class="bi bi-grid"></i></button>
     </header>
 
     <main class="content"><router-outlet /></main>
@@ -58,16 +59,8 @@
   <!-- Mobile bottom tabs -->
   <nav class="tabbar d-lg-none">
     @for (t of tabs; track t.link) {
-      @if (t.link === '/billing') {
-        <a class="tab tab-bill" routerLink="/billing" aria-label="New bill"><span><i class="bi bi-plus-lg"></i></span><small>Bill</small></a>
-      } @else {
-        <a class="tab" [routerLink]="t.link" routerLinkActive="active"><i class="bi {{ t.icon }}"></i><small>{{ t.label }}</small></a>
-      }
+      <a class="tab" [routerLink]="t.link" routerLinkActive="active"><i class="bi {{ t.icon }}"></i><small>{{ t.label }}</small></a>
     }
-    <a class="tab" role="button" (click)="moreOpen.set(true)" [class.active]="moreOpen()">
-      <i class="bi bi-grid"></i><small>More</small>
-      @if (unread()) { <span class="dot"></span> }
-    </a>
   </nav>
 
   <app-sheet [open]="moreOpen()" title="Menu" (closed)="moreOpen.set(false)">

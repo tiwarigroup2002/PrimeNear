@@ -19,7 +19,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       } else if (err.status === 401 && auth.isLoggedIn() && !req.url.includes('/auth/verify-otp')) {
         toast.warning(msg || 'Please login again');
         auth.logout(false);
-      } else if (err.status === 403 && /blocked|किसी दुकान/i.test(msg) && auth.isLoggedIn()) {
+      } else if (err.status === 403 && /blocked|not registered with any shop|not a customer of this shop/i.test(msg) && auth.isLoggedIn()) {
         toast.error(msg);
         auth.logout(false);
       } else if (err.status === 0) {

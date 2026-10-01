@@ -36,6 +36,7 @@ export class BillingComponent implements OnInit {
   walkInMobile = '';
   paymentMethod: 'Cash' | 'Online' = 'Cash';
   discount: number | null = null;
+  deliveryCharge: number | null = null;
   notes = '';
   saving = signal(false);
 
@@ -55,7 +56,7 @@ export class BillingComponent implements OnInit {
   }
 
   get total() {
-    return this.round(Math.max(0, this.gross() - (Number(this.discount) || 0)));
+    return this.round(Math.max(0, this.gross() - (Number(this.discount) || 0) + (Number(this.deliveryCharge) || 0)));
   }
 
   ngOnInit() {
@@ -179,6 +180,7 @@ export class BillingComponent implements OnInit {
         items: this.lines().map((l) => ({ productId: l.productId, quantity: l.quantity })),
         paymentMethod: this.paymentMethod,
         discount: disc,
+        deliveryCharge: Number(this.deliveryCharge) || 0,
         notes: this.notes,
       })
       .subscribe({

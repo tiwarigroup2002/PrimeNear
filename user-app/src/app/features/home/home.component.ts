@@ -14,6 +14,9 @@ import { catIcon } from '../../shared/cat-icon';
   template: `
     <app-state [loading]="loading()" [error]="error()" loadingText="Opening shop..." />
     @if (data(); as d) {
+      @if (d.locationRequired || d.outOfArea) {
+        <app-state [empty]="true" icon="bi-geo-alt" [emptyText]="d.locationRequired ? 'Allow location. You can order only from the tahsil you are standing in.' : ('You are in ' + (d.tahsilName || 'another tahsil') + '. No shop that added your number sells here.')" />
+      } @else {
       <section class="shop-hero mb-3">
         <div class="d-flex align-items-center gap-3 position-relative" style="z-index:1">
           @if (d.seller.shopImage) { <img [src]="d.seller.shopImage" class="hero-img" alt="" /> } @else { <span class="hero-img"><i class="bi bi-shop"></i></span> }
@@ -73,6 +76,7 @@ import { catIcon } from '../../shared/cat-icon';
       @if (!d.featured.length && !d.newArrivals.length) {
         <app-state [empty]="true" icon="bi-box-seam" emptyText="This shop has not added any products yet." />
       }
+      }
     }
   `,
 })
@@ -81,21 +85,24 @@ export class HomeComponent {
   auth = inject(AuthService);
   loading = signal(true);
   error = signal<string | null>(null);
-  data = signal<{ seller: any; categories: any[]; featured: Product[]; newArrivals: Product[]; recentOrders: any[] } | null>(null);
+  data = signal<{ seller: any; categories: any[]; featured: Product[]; newArrivals: Product[]; recentOrders: any[]; locationRequired?: boolean; outOfArea?: boolean; tahsilName?: string } | null>(null);
   icon = catIcon;
 
   private loadedFor: string | null | undefined;
+  private loadedTick = -1;
 
   constructor() {
     // Reload whenever the active shop changes (shop switcher in the header)
     effect(() => {
       const id = this.auth.activeSellerId();
-      if (id !== this.loadedFor) untracked(() => this.load());
+      const tick = this.auth.locationTick();
+      if (id !== this.loadedFor || tick !== this.loadedTick) untracked(() => this.load(tick));
     });
   }
 
-  load() {
+  load(tick = this.auth.locationTick()) {
     this.loadedFor = this.auth.activeSellerId();
+    this.loadedTick = tick;
     this.loading.set(true);
     this.error.set(null);
     this.data.set(null);

@@ -12,7 +12,7 @@ router.get('/lookup', requirePermission('users.view', 'disputes.manage'), ctrl.l
 router.get('/bulk-link/template', requirePermission('users.manage'), (_req, res) => {
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', 'attachment; filename="bulk-link-users-template.csv"');
-  res.send('mobileNumber,name,sellerName,customerType\n9876543210,Raj Kumar,Bhagwati Shoes,Retail\n');
+  res.send('mobileNumber,name,sellerName\n9876543210,Raj Kumar,Bhagwati Shoes\n');
 });
 router.post('/bulk-link', requirePermission('users.manage'), csvUpload.single('csvFile'), ctrl.bulkLink);
 router.get('/', requirePermission('users.view'), ctrl.list);

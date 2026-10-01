@@ -19,9 +19,6 @@ import { PageHeaderComponent } from '../../shared';
           <button class="option-card" [class.active]="theme.theme() === 'light'" (click)="setTheme('light')"><i class="bi bi-sun big"></i><span>Light</span></button>
           <button class="option-card" [class.active]="theme.theme() === 'dark'" (click)="setTheme('dark')"><i class="bi bi-moon-stars big"></i><span>Dark</span></button>
         </div>
-        <h2 class="h6 fw-semibold mt-3">Language / भाषा</h2>
-        <select class="form-select" [(ngModel)]="p.language" (ngModelChange)="save()"><option value="en">English</option><option value="hi">हिन्दी (Hindi)</option></select>
-        <small class="text-muted">Saved to your account; the app text is shown in English with Hindi help for now.</small>
       </div></div>
       <div class="card"><div class="card-body">
         <h2 class="h6 fw-semibold">Notifications</h2>

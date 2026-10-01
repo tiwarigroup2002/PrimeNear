@@ -67,7 +67,7 @@ describe('Sellers', () => {
     expect((await Seller.findById(sellerId)).status).toBe('Blocked');
     await api(token).post(`/sellers/${sellerId}/unblock`).expect(200);
     const c = await api(token).put(`/sellers/${sellerId}/commission`).send({ commissionRate: null }).expect(200);
-    expect(c.body.data.newRate).toBe(5); // platform default
+    expect(c.body.data.newRate).toBe(0); // platform keeps nothing; the shop is paid in full
     const list = await api(token).get('/sellers?search=kirana').expect(200);
     expect(list.body.data.items).toHaveLength(1);
     await api(token).delete(`/sellers/${list.body.data.items[0]._id}`).send({ reason: 'Closed' }).expect(200);

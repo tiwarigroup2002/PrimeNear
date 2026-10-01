@@ -34,26 +34,27 @@ async function ensureInvoice(order) {
 const fmtDate = (d) => new Date(d).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' });
 const rs = (n) => `Rs. ${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/** Hindi WhatsApp text for sharing an invoice (as in the product spec). */
+/** WhatsApp text for sharing an invoice. */
 function whatsappText(invoice, seller) {
   const lines = [
-    '🛍️ *अपना बिल यहाँ है*',
+    '🛍️ *Your bill*',
     '',
-    `नमस्ते ${invoice.customerSnapshot?.name || 'ग्राहक'}! 👋`,
+    `Hello ${invoice.customerSnapshot?.name || 'Customer'}! 👋`,
     '',
-    `📝 बिल नंबर: ${invoice.invoiceId}`,
-    `📅 तारीख: ${new Date(invoice.invoiceDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}`,
+    `📝 Bill no: ${invoice.invoiceId}`,
+    `📅 Date: ${new Date(invoice.invoiceDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}`,
     '',
-    '🛒 आपकी खरीद:',
+    '🛒 Your purchase:',
     ...invoice.items.map((i) => `• ${i.productName} × ${i.quantity} - ₹${round2(i.subtotal).toLocaleString('en-IN')}`),
     '',
   ];
-  if (invoice.discount) lines.push(`🏷️ छूट: ₹${invoice.discount.toLocaleString('en-IN')}`);
-  lines.push(`💰 कुल राशि: ₹${round2(invoice.totalAmount).toLocaleString('en-IN')}`, '', `धन्यवाद ${seller.shopName} से खरीदारी करने के लिए! 😊`);
+  if (invoice.deliveryCharge) lines.push(`🚚 Delivery: ₹${Number(invoice.deliveryCharge).toLocaleString('en-IN')}`);
+  if (invoice.discount) lines.push(`🏷️ Discount: ₹${invoice.discount.toLocaleString('en-IN')}`);
+  lines.push(`💰 Total amount: ₹${round2(invoice.totalAmount).toLocaleString('en-IN')}`, '', `Thank you for shopping with ${seller.shopName}! 😊`);
   return lines.join('\n');
 }
 
-/** Streams an A4 PDF invoice. Built-in PDF fonts are Latin only, so names in Hindi may not render. */
+/** Streams an A4 PDF invoice. Built-in PDF fonts are Latin only, so non-Latin names may not render. */
 function invoicePdf(invoice, seller, res) {
   const doc = new PDFDocument({ size: 'A4', margin: 40 });
   res.setHeader('Content-Type', 'application/pdf');

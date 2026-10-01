@@ -17,7 +17,7 @@ import { PageHeaderComponent } from '../../shared';
         <p class="mb-2">Columns: <code>name, category, subCategory, sellingPrice, mrp, costPrice, gstRate, stock, sku, description, lowStockThreshold</code>. Category names must match exactly. Empty SKU is auto-generated.</p>
         <button class="btn btn-sm btn-outline-primary" (click)="template()"><i class="bi bi-download me-1"></i>Download template</button>
       } @else {
-        <p class="mb-0">Columns: <code>mobileNumber, name, customerType</code> (Retail / Wholesale). Each number gets access to your shop in the user app.</p>
+        <p class="mb-0">Columns: <code>mobileNumber, name</code>. Each number gets access to your shop in the user app.</p>
       }
     </div></div>
     <div class="card mb-3"><div class="card-body text-center">

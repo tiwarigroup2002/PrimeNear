@@ -90,7 +90,7 @@ import { PageHeaderComponent, StateComponent } from '../../shared';
             <div class="accordion-body">
               <div class="d-flex justify-content-between align-items-center mb-3"><span>Dark mode</span>
                 <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" [checked]="theme.theme() === 'dark'" (change)="theme.toggle()" /></div></div>
-              <div class="d-flex justify-content-between mb-2"><span>Platform commission</span><strong>{{ s.effectiveCommissionRate }}%</strong></div>
+              <div class="d-flex justify-content-between mb-2"><span>Your earnings</span><strong>100% of each sale</strong></div>
               <div class="d-flex justify-content-between mb-3"><span>Sells in</span><span>@for (d of s.districtIds; track d._id) { <span class="badge text-bg-light border ms-1">{{ d.name }}</span> }</span></div>
               <button class="btn btn-outline-danger w-100" (click)="logout()"><i class="bi bi-box-arrow-right me-1"></i>Logout</button>
             </div>

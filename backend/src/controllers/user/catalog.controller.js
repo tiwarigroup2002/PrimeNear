@@ -3,7 +3,7 @@ const ApiError = require('../../utils/ApiError');
 const { ok } = require('../../utils/respond');
 const { getPagination, paginated, searchRegex } = require('../../utils/pagination');
 const { Product, Category, SubCategory, Review, Seller, Wishlist, Cart, Order } = require('../../models');
-const { linkedSellers, activeSeller, requireLinkedSeller } = require('../../services/shop-access.service');
+const { activeSeller, requireLinkedSeller, reachableShops, assertShopInReach } = require('../../services/shop-access.service');
 const { shopOptions } = require('../../services/cart.service');
 
 const PUBLIC_FIELDS = 'name isActive categoryId subCategoryId description images mrp sellingPrice gstRate gstAmount finalPrice stock rating ratingCount soldCount sellerId createdAt sku';
@@ -28,7 +28,23 @@ function decorate(products, wished) {
 
 /** GET /home */
 async function home(req, res) {
-  const { seller, sellers } = await activeSeller(req.user);
+  const reach = await reachableShops(req.user);
+  if (!reach.all.length) throw ApiError.forbidden('You are not registered with any shop yet. Ask your shopkeeper to add your number.');
+  if (reach.locationRequired || !reach.sellers.length) {
+    return ok(res, {
+      locationRequired: reach.locationRequired,
+      outOfArea: !reach.locationRequired,
+      tahsilName: reach.tahsilName,
+      seller: null,
+      sellers: [],
+      categories: [],
+      featured: [],
+      newArrivals: [],
+      recentOrders: [],
+      cartCount: 0,
+    });
+  }
+  const { seller, sellers, tahsilName } = await activeSeller(req.user);
   const base = visible(seller._id);
   const [featured, newest, catIds, wished, cart, recentOrders, options] = await Promise.all([
     Product.find({ ...base, stock: { $gt: 0 } }).sort({ soldCount: -1, rating: -1 }).limit(10).select(PUBLIC_FIELDS),
@@ -48,19 +64,21 @@ async function home(req, res) {
     newArrivals: decorate(newest, wished),
     recentOrders,
     cartCount: cart && String(cart.sellerId) === String(seller._id) ? cart.items.reduce((s, i) => s + i.quantity, 0) : 0,
-    location: req.user.lastLocation?.latitude ? { tahsilId: req.user.tahsilId } : null,
+    location: { tahsilId: req.user.tahsilId, tahsilName: tahsilName || null },
   });
 }
 
-/** GET /sellers - shops the user is linked to */
+/** GET /sellers - shops the user can order from in their current tahsil */
 async function sellers(req, res) {
-  const list = await linkedSellers(req.userId);
-  return ok(res, { sellers: list.map(shopCard), activeSellerId: req.user.currentActiveSellerId });
+  const reach = await reachableShops(req.user);
+  const list = reach.locationRequired ? reach.all : reach.sellers;
+  return ok(res, { sellers: list.map(shopCard), activeSellerId: req.user.currentActiveSellerId, locationRequired: reach.locationRequired, tahsilName: reach.tahsilName });
 }
 
 /** POST /sellers/switch { sellerId } - clears the cart if it holds another shop's products */
 async function switchSeller(req, res) {
   const { seller } = await requireLinkedSeller(req.userId, req.body.sellerId);
+  await assertShopInReach(req.user, seller._id);
   req.user.currentActiveSellerId = seller._id;
   await req.user.save();
   const cart = await Cart.findOne({ userId: req.userId });

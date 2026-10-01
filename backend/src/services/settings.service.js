@@ -15,11 +15,12 @@ function invalidate() {
   cache = null;
 }
 
-/** Commission % applied to a seller (seller override or platform default). */
-async function commissionRateFor(seller) {
-  if (seller && seller.commissionRate !== null && seller.commissionRate !== undefined) return seller.commissionRate;
-  const settings = await getSettings();
-  return settings.commissionSettings.defaultCommission;
+/**
+ * Platform cut is always 0. Online money still lands in the platform Razorpay
+ * account and is paid to the shop in full later. The shop keeps every rupee.
+ */
+async function commissionRateFor() {
+  return 0;
 }
 
 module.exports = { getSettings, invalidate, commissionRateFor };

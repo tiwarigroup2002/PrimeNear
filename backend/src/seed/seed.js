@@ -198,7 +198,7 @@ async function seedDemo(admin) {
       await Payment.create({ transactionId: await generateId('TXN', createdAt), orderId: order._id, userId: user._id, sellerId: seller._id, type: 'Refund', amount: finalAmount, method: 'Online', status: 'Success', paidAt: createdAt, createdAt });
     }
     if (orderStatus === 'Delivered' && Math.random() < 0.4 && !isPos) {
-      await Review.create({ userId: user._id, orderId: order._id, sellerId: seller._id, productId: items[0].productId, ratingType: 'Product', rating: randInt(3, 5), reviewText: rand(['बहुत अच्छा! 👍', 'Good quality', 'Value for money', 'Fast delivery']), createdAt });
+      await Review.create({ userId: user._id, orderId: order._id, sellerId: seller._id, productId: items[0].productId, ratingType: 'Product', rating: randInt(3, 5), reviewText: rand(['Great product! 👍', 'Good quality', 'Value for money', 'Fast delivery']), createdAt });
       await Review.create({ userId: user._id, orderId: order._id, sellerId: seller._id, ratingType: 'Seller', rating: randInt(3, 5), reviewText: rand(['Helpful shopkeeper', 'Quick delivery', 'Trusted shop 🙏', '']), createdAt });
     }
   }

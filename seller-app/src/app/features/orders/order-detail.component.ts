@@ -70,7 +70,7 @@ const NEXT: Record<string, { status: string; label: string; icon: string }> = {
               @if (o.discount) { <div class="d-flex justify-content-between"><span>Discount</span><span>-{{ o.discount | inr }}</span></div> }
               <div class="d-flex justify-content-between fw-bold"><span>Total</span><span>{{ o.finalAmount | inr }}</span></div>
               @if (o.refundedAmount) { <div class="d-flex justify-content-between text-danger"><span>Refunded</span><span>-{{ o.refundedAmount | inr }}</span></div> }
-              <div class="d-flex justify-content-between text-muted mt-1"><span>Platform commission ({{ o.commissionRate }}%)</span><span>{{ o.commissionAmount | inr }}</span></div>
+              @if (o.commissionAmount) { <div class="d-flex justify-content-between text-muted mt-1"><span>Platform commission ({{ o.commissionRate }}%)</span><span>{{ o.commissionAmount | inr }}</span></div> }
             </div>
           </div>
           <div class="card mb-3">
@@ -128,7 +128,7 @@ export class OrderDetailComponent implements OnInit {
   idx = computed(() => FLOW.indexOf(this.o()?.orderStatus));
   next = computed(() => (this.o()?.source === 'POS' ? null : NEXT[this.o()?.orderStatus]));
   phone = computed(() => this.o()?.userId?.mobileNumber || this.o()?.customerSnapshot?.mobileNumber);
-  wa = computed(() => encodeURIComponent(`नमस्ते! आपके ऑर्डर ${this.o()?.orderId} के बारे में`));
+  wa = computed(() => encodeURIComponent(`Hello! Regarding your order ${this.o()?.orderId}`));
 
   ngOnInit() {
     this.load();

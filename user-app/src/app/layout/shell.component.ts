@@ -5,7 +5,6 @@ import { filter } from 'rxjs';
 import { AuthService } from '../core/services/auth.service';
 import { CartService } from '../core/services/cart.service';
 import { ApiService } from '../core/services/api.service';
-import { AppConfigService } from '../core/services/app-config.service';
 import { ToastService } from '../core/services/toast.service';
 import { ConfirmService } from '../core/services/confirm.service';
 import { errorMessage } from '../core/interceptors/auth.interceptor';
@@ -19,7 +18,6 @@ import { SheetComponent } from '../shared/components/bottom-sheet.component';
 export class ShellComponent implements OnInit {
   auth = inject(AuthService);
   cart = inject(CartService);
-  cfg = inject(AppConfigService);
   private api = inject(ApiService);
   private router = inject(Router);
   private toast = inject(ToastService);
@@ -28,11 +26,13 @@ export class ShellComponent implements OnInit {
 
   shopsOpen = signal(false);
   unread = signal(0);
+  place = signal('');
   q = '';
 
   ngOnInit() {
     this.auth.refreshMe().subscribe({ error: () => {} });
     this.cart.load().subscribe({ error: () => {} });
+    this.syncLocation();
     this.loadUnread();
     const t = setInterval(() => this.loadUnread(), 60000);
     this.destroyRef.onDestroy(() => clearInterval(t));
@@ -41,6 +41,26 @@ export class ShellComponent implements OnInit {
 
   loadUnread() {
     this.api.get<any>('/notifications', { limit: 1 }).subscribe({ next: (r) => this.unread.set(r.unreadCount), error: () => {} });
+  }
+
+  syncLocation() {
+    if (!navigator.geolocation) {
+      this.place.set('Location is off');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        this.api.post<any>('/location/update', { latitude: pos.coords.latitude, longitude: pos.coords.longitude }).subscribe({
+          next: (r) => {
+            this.place.set(r.data?.tahsilName || 'Outside service area');
+            this.auth.refreshMe().subscribe({ next: () => this.auth.noteLocation(), error: () => this.auth.noteLocation() });
+          },
+          error: () => this.place.set('Location not saved'),
+        });
+      },
+      () => this.place.set('Allow location to order'),
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
   }
 
   search() {

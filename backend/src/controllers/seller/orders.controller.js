@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 const ApiError = require('../../utils/ApiError');
 const { ok, created } = require('../../utils/respond');
 const { getPagination, paginated, searchRegex, dateRange } = require('../../utils/pagination');
-const { Order, Invoice, Payment, User } = require('../../models');
+const { Order, Invoice, Payment, User, Customer } = require('../../models');
+const { addCustomer } = require('./customers.controller');
 const { changeStatus, cancelOrder } = require('../../services/order.service');
 const { createBill } = require('../../services/billing.service');
 const { ensureInvoice, whatsappText, invoicePdf } = require('../../services/invoice.service');
@@ -125,9 +126,30 @@ async function invoicePdfDownload(req, res) {
   invoicePdf(invoice, req.seller, res);
 }
 
+/** Sending a bill adds that mobile to the shop's customers, which is what unlocks the user app. */
+async function linkCustomerFromBill(seller, invoice) {
+  const mobile = String(invoice.customerSnapshot?.mobileNumber || '').replace(/\D/g, '').slice(-10);
+  if (!/^[6-9]\d{9}$/.test(mobile)) return;
+  let customer = await Customer.findOne({ sellerId: seller._id, mobileNumber: mobile });
+  if (!customer) {
+    try {
+      customer = await addCustomer(seller, { mobileNumber: mobile, name: invoice.customerSnapshot?.name });
+    } catch (err) {
+      if (err.statusCode !== 409) throw err;
+      customer = await Customer.findOne({ sellerId: seller._id, mobileNumber: mobile });
+    }
+  }
+  if (customer && !invoice.customerId) {
+    invoice.customerId = customer._id;
+    invoice.userId = customer.userId;
+    await Order.updateOne({ _id: invoice.orderId?._id || invoice.orderId }, { customerId: customer._id, userId: customer.userId });
+  }
+}
+
 /** POST /invoices/:id/share { channel: whatsapp|sms } -> link / send, and remember it was shared */
 async function share(req, res) {
   const invoice = await findInvoice(req);
+  await linkCustomerFromBill(req.seller, invoice);
   const text = whatsappText(invoice, req.seller);
   const mobile = invoice.customerSnapshot?.mobileNumber;
   let url = null;

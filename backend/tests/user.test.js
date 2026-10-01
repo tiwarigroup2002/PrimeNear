@@ -32,10 +32,10 @@ beforeAll(async () => {
 afterAll(disconnect);
 
 describe('User login', () => {
-  test('number not linked to any shop gets the Hindi message', async () => {
+  test('number not linked to any shop gets a clear message', async () => {
     await User.create({ mobileNumber: '9833333333' });
     const res = await request(app).post('/api/user/auth/send-otp').send({ mobileNumber: '9833333333' }).expect(404);
-    expect(res.body.message).toMatch(/किसी दुकान के ग्राहक नहीं/);
+    expect(res.body.message).toMatch(/not registered with any shop/i);
     await request(app).post('/api/user/auth/send-otp').send({ mobileNumber: '9844444444' }).expect(404);
   });
 
@@ -57,6 +57,7 @@ describe('User login', () => {
 
 describe('Browsing', () => {
   test('home & products only show the active shop', async () => {
+    await U(token).post('/location/update').send({ latitude: 22.701, longitude: 75.801 }).expect(200);
     await U(token).post('/sellers/switch').send({ sellerId: String(shopA._id) }).expect(200);
     const home = await U(token).get('/home').expect(200);
     expect(home.body.data.seller.shopName).toBe('User Shop A');
@@ -132,7 +133,7 @@ describe('Cart & checkout', () => {
     await U(token).post('/orders/verify-payment').send({ orderId, mock: true }).expect(200);
     const seen = await request(app).get(`/api/seller/orders/${orderId}`).set('Authorization', `Bearer ${sellerToken}`).expect(200);
     expect(seen.body.data.order.paymentStatus).toBe('Completed');
-    expect(await Notification.countDocuments({ recipientType: 'Seller', recipientId: shopA._id, title: /नया ऑर्डर/ })).toBe(1);
+    expect(await Notification.countDocuments({ recipientType: 'Seller', recipientId: shopA._id, title: /New order!/i })).toBe(1);
     expect(await Payment.countDocuments({ orderId, status: 'Success' })).toBe(1);
     // Idempotent
     await U(token).post('/orders/verify-payment').send({ orderId, mock: true }).expect(200);
@@ -178,7 +179,7 @@ describe('Cart & checkout', () => {
     const pdf = await U(token).get(`/invoices/${inv.body.data.invoiceId}/download`).expect(200);
     expect(pdf.headers['content-type']).toBe('application/pdf');
 
-    await U(token).post('/reviews').send({ orderId: String(paid._id), seller: { rating: 4, reviewText: 'Good shop' }, products: [{ productId: String(pA1._id), rating: 5, reviewText: 'बहुत अच्छा!' }] }).expect(201);
+    await U(token).post('/reviews').send({ orderId: String(paid._id), seller: { rating: 4, reviewText: 'Good shop' }, products: [{ productId: String(pA1._id), rating: 5, reviewText: 'Great product!' }] }).expect(201);
     expect((await Product.findById(pA1._id)).rating).toBe(5);
     expect((await Seller.findById(shopA._id)).rating).toBe(4);
     await U(token).post('/reviews').send({ orderId: String(paid._id), seller: { rating: 2 } }).expect(201); // update, not duplicate

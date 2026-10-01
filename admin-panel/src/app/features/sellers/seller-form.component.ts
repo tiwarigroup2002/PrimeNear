@@ -45,6 +45,7 @@ export class SellerFormComponent implements OnInit {
     email: ['', Validators.email],
     tahsilId: ['', Validators.required],
     districtIds: [[] as string[]],
+    sellsAcrossDistricts: [false],
     shopAddress: ['', [Validators.required, Validators.minLength(5)]],
     gstNumber: ['', Validators.pattern(GST_PATTERN)],
     upiId: ['', Validators.pattern(/^[\w.-]+@[\w.-]+$/)],
@@ -88,6 +89,7 @@ export class SellerFormComponent implements OnInit {
             ...seller,
             tahsilId: seller.tahsilId?._id ?? seller.tahsilId,
             districtIds: seller.districtIds.map((d: any) => d._id ?? d),
+            sellsAcrossDistricts: !!seller.sellsAcrossDistricts,
             useDefaultCommission: seller.commissionRate === null || seller.commissionRate === undefined,
             commissionRate: seller.commissionRate,
             bankDetails: { accountHolder: '', accountNumber: '', ifscCode: '', bankName: '', ...(seller.bankDetails || {}) },
@@ -150,13 +152,13 @@ export class SellerFormComponent implements OnInit {
       email: v.email || '',
       tahsilId: v.tahsilId,
       districtIds: v.districtIds,
+      sellsAcrossDistricts: !!v.sellsAcrossDistricts,
       shopAddress: v.shopAddress,
       gstNumber: v.gstNumber || '',
       upiId: v.upiId || '',
       bankDetails: v.bankDetails,
       settings: v.settings,
     };
-    if (this.auth.can('sellers.commission')) body.commissionRate = v.useDefaultCommission ? null : Number(v.commissionRate ?? 0);
     if (!this.isEdit) {
       body.mobileNumber = v.mobileNumber;
       body.status = v.status;

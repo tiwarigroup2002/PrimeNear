@@ -49,20 +49,12 @@
           }
           @case ('commission') {
             <div class="card">
-              <div class="card-header"><span class="card-title">Commission & payouts</span></div>
+              <div class="card-header"><span class="card-title">Payouts</span></div>
               <div class="card-body row g-3">
-                <div class="col-md-4"><label class="form-label">Default commission</label><div class="input-group"><input type="number" min="0" max="100" step="0.5" class="form-control" [(ngModel)]="commission.defaultCommission" /><span class="input-group-text">%</span></div>
-                  <div class="form-text">Used for sellers without their own rate.</div></div>
-                <div class="col-md-4"><label class="form-label">Payout frequency</label><select class="form-select" [(ngModel)]="commission.payoutFrequency"><option>Daily</option><option>Weekly</option><option>Monthly</option></select></div>
-                <div class="col-md-4"><label class="form-label">Holding period (days)</label><input type="number" min="0" max="60" class="form-control" [(ngModel)]="commission.payoutDelayDays" />
-                  <div class="form-text">Days after delivery before online money is paid out (return window).</div></div>
-                <div class="col-12">
-                  <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" id="cc" [(ngModel)]="commission.chargeCommissionOnCash" />
-                    <label class="form-check-label" for="cc">Charge commission on cash orders (seller bills & cash on delivery)</label>
-                  </div>
-                  <div class="form-text">Cash is collected by the seller directly, so this commission is deducted from their next online payout.</div>
-                </div>
+                <div class="col-12"><div class="alert alert-light border mb-0">The platform does not take a commission. Online customer payments are collected in the platform account and paid to the shop in full after the holding period. Cash bills stay with the shop.</div></div>
+                <div class="col-md-6"><label class="form-label">Payout frequency</label><select class="form-select" [(ngModel)]="commission.payoutFrequency"><option>Daily</option><option>Weekly</option><option>Monthly</option></select></div>
+                <div class="col-md-6"><label class="form-label">Holding period (days)</label><input type="number" min="0" max="60" class="form-control" [(ngModel)]="commission.payoutDelayDays" />
+                  <div class="form-text">Days after delivery before online money is paid to the shop.</div></div>
               </div>
               <div class="card-footer text-end"><button class="btn btn-primary" (click)="saveCommission()">Save</button></div>
             </div>
@@ -145,7 +137,7 @@
                 @if (st.maintenanceMode) { <div class="alert alert-warning small"><i class="bi bi-cone-striped me-1"></i>Maintenance mode is ON.</div> }
                 <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" id="mm" [(ngModel)]="maintenance.enabled" /><label class="form-check-label" for="mm">Enable maintenance mode for user & seller apps</label></div>
                 <label class="form-label">Message shown to users</label>
-                <textarea class="form-control" rows="3" [(ngModel)]="maintenance.message" placeholder="हम कुछ सुधार कर रहे हैं, कृपया थोड़ी देर बाद प्रयास करें।"></textarea>
+                <textarea class="form-control" rows="3" [(ngModel)]="maintenance.message" placeholder="We are making improvements. Please try again in a little while."></textarea>
               </div>
               <div class="card-footer text-end"><button class="btn btn-primary" (click)="saveMaintenance()">Save</button></div>
             </div>

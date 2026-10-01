@@ -11,7 +11,7 @@
 @if (d(); as d) {
   <div class="card mb-3 border-0 text-white" style="background: linear-gradient(135deg, #059669, #0e7490)">
     <div class="card-body">
-      <div class="small opacity-75">Today's sales · आज की बिक्री</div>
+      <div class="small opacity-75">Today's sales</div>
       <div class="display-6 fw-bold">{{ d.today.revenue | inr: 0 }}</div>
       <div class="d-flex gap-4 small mt-2">
         <span><i class="bi bi-bag"></i> {{ d.today.orders }} orders</span>
