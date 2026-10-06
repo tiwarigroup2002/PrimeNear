@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const ApiError = require('../../utils/ApiError');
 const { ok, created } = require('../../utils/respond');
@@ -8,6 +9,7 @@ const { changeStatus, cancelOrder } = require('../../services/order.service');
 const { createBill } = require('../../services/billing.service');
 const { ensureInvoice, whatsappText, invoicePdf } = require('../../services/invoice.service');
 const { sendSms } = require('../../services/sms.service');
+const { notifyUser } = require('../../services/notification.service');
 const { REVENUE_MATCH, NET_AMOUNT, round2 } = require('../../services/metrics');
 const { VISIBLE_TO_SELLER } = require('../../services/checkout.service');
 
@@ -50,14 +52,54 @@ async function list(req, res) {
 async function getOne(req, res) {
   const order = await findOrder(req);
   await order.populate([{ path: 'userId', select: 'name mobileNumber email' }, { path: 'invoiceId', select: 'invoiceId invoiceDate' }]);
-  const payments = await Payment.find({ orderId: order._id }).sort({ createdAt: 1 });
-  return ok(res, { order, payments, refundableAmount: round2(order.finalAmount - (order.refundedAmount || 0)) });
+  const [payments, otpDoc] = await Promise.all([Payment.find({ orderId: order._id }).sort({ createdAt: 1 }), Order.findById(order._id).select('+deliveryOtp')]);
+  return ok(res, {
+    order,
+    payments,
+    refundableAmount: round2(order.finalAmount - (order.refundedAmount || 0)),
+    deliveryOtpRequired: needsDeliveryOtp(order),
+    deliveryOtpSentAt: otpDoc?.deliveryOtp?.sentAt || null,
+  });
+}
+
+// ---------- Delivery OTP ----------
+// App orders are marked delivered only after the customer gives the shop a code.
+const DELIVERY_OTP_MAX_ATTEMPTS = 5;
+const needsDeliveryOtp = (order) => order.source === 'Online' && Boolean(order.userId);
+
+/** POST /orders/:id/delivery-otp - creates a code and sends it to the customer (SMS + app) */
+async function sendDeliveryOtp(req, res) {
+  const order = await findOrder(req);
+  if (!needsDeliveryOtp(order)) throw ApiError.badRequest('This order does not need a delivery OTP');
+  if (!['Confirmed', 'Packed', 'Shipped'].includes(order.orderStatus)) throw ApiError.badRequest(`Order is ${order.orderStatus}`);
+  const current = (await Order.findById(order._id).select('+deliveryOtp')).deliveryOtp;
+  if (current?.sentAt && Date.now() - current.sentAt.getTime() < 30000) throw new ApiError(429, 'Please wait 30 seconds before sending the OTP again');
+  const code = String(crypto.randomInt(1000, 10000));
+  await Order.updateOne({ _id: order._id }, { deliveryOtp: { code, sentAt: new Date(), attempts: 0 } });
+  const user = await User.findById(order.userId).select('mobileNumber');
+  if (user?.mobileNumber) await sendSms(user.mobileNumber, `${code} is the delivery code for order ${order.orderId} from ${req.seller.shopName}. Share it only when you receive your items.`);
+  await notifyUser(order.userId, { title: `Delivery code: ${code}`, message: `Share this code with ${req.seller.shopName} when you receive order ${order.orderId}.`, type: 'OrderStatus', link: `/orders/${order._id}`, data: { orderId: order._id } });
+  return ok(res, { sentTo: user?.mobileNumber ? `******${user.mobileNumber.slice(-4)}` : null }, 'OTP sent to the customer');
+}
+
+async function checkDeliveryOtp(order, otp) {
+  const doc = await Order.findById(order._id).select('+deliveryOtp');
+  const saved = doc.deliveryOtp;
+  if (!saved?.code) throw ApiError.badRequest('Send the delivery OTP to the customer first');
+  if (!otp) throw ApiError.badRequest('Enter the OTP the customer received');
+  if (saved.attempts >= DELIVERY_OTP_MAX_ATTEMPTS) throw new ApiError(429, 'Too many wrong attempts. Send a new OTP.');
+  if (String(otp).trim() !== saved.code) {
+    await Order.updateOne({ _id: order._id }, { $inc: { 'deliveryOtp.attempts': 1 } });
+    throw ApiError.badRequest(`Wrong OTP. ${DELIVERY_OTP_MAX_ATTEMPTS - saved.attempts - 1} attempt(s) left.`);
+  }
+  await Order.updateOne({ _id: order._id }, { $unset: { deliveryOtp: 1 } });
 }
 
 /** PUT /orders/:id/status - normal flow only (Pending → Confirmed → Packed → Shipped → Delivered) */
 async function updateStatus(req, res) {
   const order = await findOrder(req);
   if (req.body.status === 'Returned') throw ApiError.badRequest('Returns are handled through return requests / support');
+  if (req.body.status === 'Delivered' && needsDeliveryOtp(order)) await checkDeliveryOtp(order, req.body.otp);
   await changeStatus(order, { status: req.body.status, note: req.body.note, actor: actor(req) });
   if (order.orderStatus === 'Delivered') await ensureInvoice(order);
   return ok(res, order, `Order marked ${order.orderStatus}`);
@@ -164,4 +206,4 @@ async function share(req, res) {
   return ok(res, { url, text }, req.body.channel === 'whatsapp' ? 'Opening WhatsApp' : 'SMS sent');
 }
 
-module.exports = { list, getOne, updateStatus, cancel, addNote, createInvoice, listInvoices, getInvoice, orderInvoice, invoicePdfDownload, share };
+module.exports = { list, getOne, updateStatus, sendDeliveryOtp, cancel, addNote, createInvoice, listInvoices, getInvoice, orderInvoice, invoicePdfDownload, share };

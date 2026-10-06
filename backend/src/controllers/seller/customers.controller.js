@@ -81,10 +81,34 @@ async function getOne(req, res) {
   return ok(res, { customer, orders, stats: { totalOrders: s.count, totalSpent: round2(s.spent), averageOrderValue: s.count ? round2(s.spent / s.count) : 0 } });
 }
 
+/**
+ * A new phone number moves this shop link to the account of that number (created if needed).
+ * The old number loses access to this shop; its account and other shops are not touched.
+ */
+async function changeMobile(seller, customer, mobileNumber) {
+  if (mobileNumber === customer.mobileNumber) return;
+  let user = await User.findOne({ mobileNumber });
+  if (user?.status === 'Blocked') throw ApiError.badRequest('This number is blocked on the platform. Contact support.');
+  if (user && (await Customer.exists({ sellerId: seller._id, userId: user._id, _id: { $ne: customer._id } }))) {
+    throw ApiError.conflict('Another customer of your shop already uses this number');
+  }
+  if (!user) user = await User.create({ mobileNumber, name: customer.name || undefined, email: customer.email || undefined });
+  else if (user.status === 'Deleted') {
+    user.status = 'Active';
+    await user.save();
+  }
+  const oldUserId = customer.userId;
+  customer.userId = user._id;
+  customer.mobileNumber = mobileNumber;
+  await User.updateOne({ _id: oldUserId, currentActiveSellerId: seller._id }, { $unset: { currentActiveSellerId: 1 } });
+}
+
 async function update(req, res) {
   const customer = await findCustomer(req);
   const body = { ...req.body };
   delete body.customerType;
+  if (body.mobileNumber) await changeMobile(req.seller, customer, body.mobileNumber);
+  delete body.mobileNumber;
   Object.assign(customer, body);
   customer.customerType = 'Retail';
   await customer.save();

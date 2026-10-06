@@ -8,7 +8,7 @@ const { loadCart } = require('./cart.service');
 const { takeStock } = require('./stock.service');
 const { restock } = require('./order.service');
 const { commissionRateFor } = require('./settings.service');
-const { requireLinkedSeller, assertShopInReach } = require('./shop-access.service');
+const { requireLinkedSeller, checkDeliveryArea } = require('./shop-access.service');
 const { notifySeller, notifyUser } = require('./notification.service');
 const razorpay = require('./razorpay.service');
 const { round2 } = require('./metrics');
@@ -50,7 +50,6 @@ async function placeOrder(user, { addressId, deliveryType = 'Delivery', paymentM
   if (!data.items.length) throw ApiError.badRequest('Your cart is empty');
   if (!data.canCheckout) throw ApiError.badRequest('Some items in your cart are not available. Please review your cart.');
   const { seller } = await requireLinkedSeller(user._id, data.sellerId);
-  await assertShopInReach(user, seller._id);
   const opts = data.options;
 
   if (deliveryType === 'Delivery' && !opts.delivery) throw ApiError.badRequest(`${seller.shopName} does not deliver. Choose store pickup.`);
@@ -62,6 +61,8 @@ async function placeOrder(user, { addressId, deliveryType = 'Delivery', paymentM
   if (deliveryType === 'Delivery') {
     address = user.addresses.id(addressId) || (!addressId && user.addresses.find((a) => a.isDefault));
     if (!address) throw ApiError.badRequest('Please select a delivery address');
+    const area = await checkDeliveryArea(seller, address);
+    if (!area.deliverable) throw ApiError.badRequest(area.message);
   }
 
   const products = await Product.find({ _id: { $in: data.items.map((i) => i.productId) } });

@@ -6,13 +6,13 @@ const { generateId } = require('../../utils/ids');
 const { fileUrl } = require('../../middleware/upload');
 const { Product, Cart, Order, Payment, Review, Invoice, ReturnRequest, Dispute, Seller } = require('../../models');
 const { loadCart, setItem } = require('../../services/cart.service');
-const { requireLinkedSeller } = require('../../services/shop-access.service');
+const { requireLinkedSeller, checkDeliveryArea } = require('../../services/shop-access.service');
 const checkout = require('../../services/checkout.service');
 const razorpay = require('../../services/razorpay.service');
 const { cancelOrder } = require('../../services/order.service');
 const { requestReturn, RETURN_WINDOW_DAYS } = require('../../services/return.service');
 const { refreshRatings } = require('../../services/rating.service');
-const { ensureInvoice, invoicePdf } = require('../../services/invoice.service');
+const { ensureInvoice, invoicePdf, showGstin } = require('../../services/invoice.service');
 const { notifySeller, notifyAdmins } = require('../../services/notification.service');
 const { round2 } = require('../../services/metrics');
 
@@ -60,6 +60,22 @@ async function clearCart(req, res) {
 }
 
 // ---------- Checkout & payment ----------
+/** POST /orders/check-delivery { addressId } - is this address inside the active cart shop's delivery area? */
+async function checkDelivery(req, res) {
+  const cart = await Cart.findOne({ userId: req.userId });
+  const sellerId = cart?.items.length ? cart.sellerId : req.user.currentActiveSellerId;
+  if (!sellerId) throw ApiError.badRequest('Your cart is empty');
+  const { seller } = await requireLinkedSeller(req.userId, sellerId);
+  const address = req.user.addresses.id(req.body.addressId);
+  if (!address) throw ApiError.notFound('Address not found');
+  return ok(res, await checkDeliveryArea(seller, address));
+}
+
+async function deliveryCodeOf(order) {
+  const doc = await Order.findById(order._id).select('+deliveryOtp');
+  return doc?.deliveryOtp?.code || null;
+}
+
 async function createOrder(req, res) {
   const { order, payment } = await checkout.placeOrder(req.user, { ...req.body, addressId: req.body.addressId || req.body.deliveryAddressId });
   return created(res, { orderId: order._id, order, payment, razorpayOrderId: order.razorpayOrderId }, order.paymentMethod === 'Cash' ? 'Order placed successfully' : 'Complete the payment');
@@ -150,6 +166,8 @@ async function getOrder(req, res) {
     canReturn: order.orderStatus === 'Delivered' && returnDeadline > new Date() && (!ret || ret.status === 'Rejected'),
     canReview: order.orderStatus === 'Delivered',
     returnDeadline,
+    // Shown to the customer only; they read it out to the shop at handover
+    deliveryCode: ['Confirmed', 'Packed', 'Shipped'].includes(order.orderStatus) ? await deliveryCodeOf(order) : null,
   });
 }
 
@@ -259,8 +277,11 @@ async function findMyInvoice(req) {
 
 async function invoice(req, res) {
   const inv = await findMyInvoice(req);
-  const seller = await Seller.findById(inv.sellerId).select('shopName shopAddress mobileNumber gstNumber');
-  return ok(res, { invoice: inv, seller });
+  const seller = await Seller.findById(inv.sellerId).select('shopName shopAddress mobileNumber gstNumber settings.showGstOnInvoice');
+  const s = seller.toJSON();
+  if (!showGstin(seller)) delete s.gstNumber;
+  delete s.settings;
+  return ok(res, { invoice: inv, seller: s });
 }
 
 async function invoiceDownload(req, res) {
@@ -348,7 +369,7 @@ async function dashboard(req, res) {
 
 module.exports = {
   getCart, addItem, updateItem, removeItem, clearCart,
-  createOrder, verifyPayment, paymentFailed, retryPayment,
+  checkDelivery, createOrder, verifyPayment, paymentFailed, retryPayment,
   listOrders, getOrder, cancel, track, reorder, returnRequest, returnStatus,
   submitReviews, orderReviews, invoices, invoice, invoiceDownload, orderInvoice,
   tickets, ticket, createTicket, commentTicket, dashboard,

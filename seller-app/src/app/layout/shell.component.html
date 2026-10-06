@@ -45,6 +45,10 @@
       </div>
       <div class="flex-grow-1"></div>
       <button class="btn btn-icon" (click)="theme.toggle()" aria-label="Theme"><i class="bi" [class.bi-moon-stars]="theme.theme() === 'light'" [class.bi-sun]="theme.theme() === 'dark'"></i></button>
+      <button class="btn btn-icon position-relative" (click)="openRecentOrders()" aria-label="Recent orders" title="Recent orders">
+        <i class="bi bi-bag-check"></i>
+        @if (openOrders()) { <span class="badge rounded-pill bg-warning text-dark notif-count">{{ openOrders() > 9 ? '9+' : openOrders() }}</span> }
+      </button>
       <a class="btn btn-icon position-relative" routerLink="/notifications" aria-label="Notifications">
         <i class="bi bi-bell"></i>
         @if (unread()) { <span class="badge rounded-pill bg-danger notif-count">{{ unread() > 9 ? '9+' : unread() }}</span> }
@@ -62,6 +66,27 @@
       <a class="tab" [routerLink]="t.link" routerLinkActive="active"><i class="bi {{ t.icon }}"></i><small>{{ t.label }}</small></a>
     }
   </nav>
+
+  <app-sheet [open]="ordersOpen()" title="Recent orders" (closed)="ordersOpen.set(false)">
+    @if (recentOrders() === null) {
+      <div class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading...</div>
+    } @else if (!recentOrders()!.length) {
+      <div class="text-center text-muted py-4"><i class="bi bi-bag fs-2 d-block mb-2 opacity-50"></i>No orders yet</div>
+    } @else {
+      <div class="m-list border rounded">
+        @for (o of recentOrders(); track o._id) {
+          <a class="m-item" [routerLink]="['/orders', o._id]">
+            <span class="flex-grow-1 min-w-0">
+              <span class="d-block small fw-semibold">{{ o.orderId }} · {{ o.userId?.name || o.customerSnapshot?.name || 'Walk-in' }}</span>
+              <span class="cell-sub">{{ o.source === 'POS' ? 'Counter bill' : 'App order' }} · {{ o.createdAt | timeAgo }}</span>
+            </span>
+            <span class="text-end"><span class="d-block small fw-semibold">{{ o.finalAmount | inr }}</span><app-status-badge [status]="o.orderStatus" /></span>
+          </a>
+        }
+      </div>
+    }
+    <a routerLink="/orders" class="btn btn-outline-primary w-100 mt-3">All orders</a>
+  </app-sheet>
 
   <app-sheet [open]="moreOpen()" title="Menu" (closed)="moreOpen.set(false)">
     <div class="more-grid">

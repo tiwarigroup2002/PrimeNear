@@ -64,7 +64,7 @@ function invoicePdf(invoice, seller, res) {
   doc.fontSize(18).font('Helvetica-Bold').text(seller.shopName, { align: 'center' });
   doc.fontSize(9).font('Helvetica').fillColor('#444')
     .text(seller.shopAddress || '', { align: 'center' })
-    .text(`Mobile: ${seller.mobileNumber}${seller.gstNumber ? `   GSTIN: ${seller.gstNumber}` : ''}`, { align: 'center' });
+    .text(`Mobile: ${seller.mobileNumber}${showGstin(seller) ? `   GSTIN: ${seller.gstNumber}` : ''}`, { align: 'center' });
   doc.moveDown(0.8).fillColor('#000').fontSize(13).font('Helvetica-Bold').text('TAX INVOICE', { align: 'center' });
   doc.moveDown(0.5).fontSize(9).font('Helvetica');
   const top = doc.y;
@@ -108,4 +108,9 @@ function invoicePdf(invoice, seller, res) {
   doc.end();
 }
 
-module.exports = { ensureInvoice, whatsappText, invoicePdf };
+/** The seller chooses whether the GSTIN is printed on bills (on by default). */
+function showGstin(seller) {
+  return Boolean(seller?.gstNumber) && seller?.settings?.showGstOnInvoice !== false;
+}
+
+module.exports = { ensureInvoice, whatsappText, invoicePdf, showGstin };

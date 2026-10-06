@@ -88,6 +88,7 @@ export class SearchComponent implements OnInit {
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
   private sub?: Subscription;
+  private loadedKey = '';
 
   f: Filters = { ...EMPTY };
   draft: Filters = { ...EMPTY };
@@ -111,7 +112,10 @@ export class SearchComponent implements OnInit {
     const s2 = this.route.queryParamMap.subscribe((q) => {
       const next = { ...EMPTY };
       (Object.keys(EMPTY) as (keyof Filters)[]).forEach((k) => (next[k] = q.get(k) ?? ''));
-      if (JSON.stringify(next) === JSON.stringify(this.f) && this.items().length) return;
+      // apply() edits this.f before navigating, so compare with what was last loaded instead
+      const key = JSON.stringify(next);
+      if (key === this.loadedKey) return;
+      this.loadedKey = key;
       this.f = next;
       this.catSel.set(next.category);
       this.fetch(true);

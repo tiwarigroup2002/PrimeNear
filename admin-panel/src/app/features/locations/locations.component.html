@@ -32,11 +32,12 @@
       </div>
       <div class="table-responsive">
         <table class="table table-hover">
-          <thead><tr><th>Tahsil</th><th>Latitude</th><th>Longitude</th><th class="text-end">Radius</th><th class="text-end">Sellers</th><th class="text-end">Users</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+          <thead><tr><th>Tahsil</th><th>PIN codes</th><th>Latitude</th><th>Longitude</th><th class="text-end">Radius</th><th class="text-end">Sellers</th><th class="text-end">Users</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
           <tbody>
             @for (t of tahsils(); track t._id) {
               <tr>
                 <td class="fw-semibold">{{ t.name }}</td>
+                <td class="small">{{ (t.pincodes || []).join(", ") || "—" }}</td>
                 <td>{{ t.latitude | number: '1.4-4' }}</td>
                 <td>{{ t.longitude | number: '1.4-4' }}</td>
                 <td class="text-end">{{ t.radius }} km</td>
@@ -91,6 +92,11 @@
     <div class="col-md-3"><label class="form-label required">Longitude</label><input type="number" step="0.0001" class="form-control" [(ngModel)]="tahsilForm.longitude" /></div>
     <div class="col-md-3"><label class="form-label">Radius (km)</label><input type="number" min="0.5" max="100" class="form-control" [(ngModel)]="tahsilForm.radius" /></div>
     <div class="col-md-3 d-flex align-items-end"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="ta" [(ngModel)]="tahsilForm.isActive" /><label class="form-check-label" for="ta">Active</label></div></div>
+    <div class="col-12">
+      <label class="form-label" for="tpins">PIN codes in this tahsil</label>
+      <input id="tpins" class="form-control" [(ngModel)]="tahsilForm.pincodes" placeholder="452001, 452002, 452007" />
+      <div class="form-text">Separate with commas. Used to fill the tahsil from a PIN code when adding a seller, and to check customer delivery addresses at checkout.</div>
+    </div>
   </div>
   @if (tahsilOpen()) {
     <app-map-picker [latitude]="tahsilForm.latitude" [longitude]="tahsilForm.longitude" [radiusKm]="tahsilForm.radius" (picked)="tahsilForm.latitude = $event.latitude; tahsilForm.longitude = $event.longitude" />

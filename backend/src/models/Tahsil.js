@@ -7,6 +7,8 @@ const tahsilSchema = new mongoose.Schema(
     latitude: { type: Number, required: true },
     longitude: { type: Number, required: true },
     radius: { type: Number, default: 5 }, // km
+    // PIN codes in this tahsil. Used to fill the tahsil from a PIN and to check delivery addresses.
+    pincodes: { type: [String], default: [], index: true },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true }

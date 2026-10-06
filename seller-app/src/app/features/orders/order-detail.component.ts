@@ -6,7 +6,7 @@ import { ApiService } from '../../core/services/api.service';
 import { ToastService } from '../../core/services/toast.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { errorMessage } from '../../core/interceptors/auth.interceptor';
-import { InrPipe, PageHeaderComponent, StateComponent, StatusBadgeComponent } from '../../shared';
+import { InrPipe, PageHeaderComponent, SheetComponent, StateComponent, StatusBadgeComponent } from '../../shared';
 
 const FLOW = ['Pending', 'Confirmed', 'Packed', 'Shipped', 'Delivered'];
 const NEXT: Record<string, { status: string; label: string; icon: string }> = {
@@ -18,7 +18,7 @@ const NEXT: Record<string, { status: string; label: string; icon: string }> = {
 
 @Component({
   selector: 'app-order-detail',
-  imports: [DatePipe, FormsModule, InrPipe, PageHeaderComponent, StateComponent, StatusBadgeComponent],
+  imports: [DatePipe, FormsModule, InrPipe, PageHeaderComponent, SheetComponent, StateComponent, StatusBadgeComponent],
   template: `
     <app-page-header [title]="o()?.orderId || 'Order'" back="/orders" backLabel="Orders" />
     <app-state [loading]="!o() && !error()" [error]="error()" />
@@ -43,7 +43,7 @@ const NEXT: Record<string, { status: string; label: string; icon: string }> = {
           }
           @if (next(); as n) {
             <div class="d-grid gap-2 d-sm-flex">
-              <button class="btn btn-primary btn-lg flex-grow-1" (click)="move(n.status)" [disabled]="busy()"><i class="bi {{ n.icon }} me-1"></i>{{ n.label }}</button>
+              <button class="btn btn-primary btn-lg flex-grow-1" (click)="n.status === 'Delivered' && otpRequired() ? openOtp() : move(n.status)" [disabled]="busy()"><i class="bi {{ n.icon }} me-1"></i>{{ n.label }}</button>
               <button class="btn btn-outline-danger" (click)="cancel()" [disabled]="busy()">Cancel order</button>
             </div>
           }
@@ -110,6 +110,23 @@ const NEXT: Record<string, { status: string; label: string; icon: string }> = {
           </div>
         </div>
       </div>
+
+      <app-sheet [open]="otpOpen()" title="Confirm delivery with OTP" (closed)="otpOpen.set(false)">
+        <p class="small text-muted">The customer must confirm they received the items. Send an OTP to their phone and enter the code they tell you.</p>
+        <button class="btn btn-outline-primary w-100 mb-3" (click)="sendOtp()" [disabled]="otpSending() || otpWait() > 0">
+          @if (otpSending()) { <span class="spinner-border spinner-border-sm me-1"></span> }
+          <i class="bi bi-send me-1"></i>{{ otpSentAt() ? (otpWait() > 0 ? 'Resend in ' + otpWait() + 's' : 'Resend OTP') : 'Send OTP to customer' }}
+        </button>
+        @if (otpSentAt()) {
+          <div class="small text-success mb-2"><i class="bi bi-check-circle me-1"></i>OTP sent{{ otpSentTo() ? ' to ' + otpSentTo() : '' }}. It is also shown in the customer's app on this order.</div>
+          <label class="form-label" for="dotp">OTP from customer</label>
+          <input id="dotp" class="form-control form-control-lg text-center fw-bold mb-2" style="letter-spacing:.5em" maxlength="4" inputmode="numeric" autocomplete="one-time-code" [(ngModel)]="otp" (keyup.enter)="confirmDelivery()" />
+        }
+        <div sheet-footer class="sheet-footer">
+          <button class="btn btn-light" (click)="otpOpen.set(false)">Cancel</button>
+          <button class="btn btn-primary" (click)="confirmDelivery()" [disabled]="busy() || !otpSentAt() || otp.length !== 4"><i class="bi bi-house-check me-1"></i>Confirm delivery</button>
+        </div>
+      </app-sheet>
     }
   `,
 })
@@ -135,15 +152,61 @@ export class OrderDetailComponent implements OnInit {
   }
 
   load() {
-    this.api.get<any>(`/orders/${this.id}`).subscribe({ next: (r) => this.o.set(r.order), error: (e) => this.error.set(errorMessage(e)) });
+    this.api.get<any>(`/orders/${this.id}`).subscribe({
+      next: (r) => {
+        this.o.set(r.order);
+        this.otpRequired.set(!!r.deliveryOtpRequired);
+        this.otpSentAt.set(r.deliveryOtpSentAt || null);
+      },
+      error: (e) => this.error.set(errorMessage(e)),
+    });
   }
 
-  move(status: string) {
+  move(status: string, otp?: string) {
     this.busy.set(true);
-    this.api.put<any>(`/orders/${this.id}/status`, { status }).subscribe({
-      next: (r) => { this.busy.set(false); this.toast.success(r.message || 'Updated'); this.load(); },
+    this.api.put<any>(`/orders/${this.id}/status`, otp ? { status, otp } : { status }).subscribe({
+      next: (r) => { this.busy.set(false); this.otpOpen.set(false); this.toast.success(r.message || 'Updated'); this.load(); },
       error: (e) => { this.busy.set(false); this.toast.error(errorMessage(e)); },
     });
+  }
+
+  // ---- Delivery OTP ----
+  otpRequired = signal(false);
+  otpOpen = signal(false);
+  otpSentAt = signal<string | null>(null);
+  otpSentTo = signal<string | null>(null);
+  otpSending = signal(false);
+  otpWait = signal(0);
+  otp = '';
+  private otpTimer?: ReturnType<typeof setInterval>;
+
+  openOtp() {
+    this.otp = '';
+    this.otpOpen.set(true);
+  }
+
+  sendOtp() {
+    this.otpSending.set(true);
+    this.api.post<any>(`/orders/${this.id}/delivery-otp`).subscribe({
+      next: (r) => {
+        this.otpSending.set(false);
+        this.otpSentAt.set(new Date().toISOString());
+        this.otpSentTo.set(r.data?.sentTo || null);
+        this.toast.success(r.message || 'OTP sent');
+        this.otpWait.set(30);
+        clearInterval(this.otpTimer);
+        this.otpTimer = setInterval(() => {
+          this.otpWait.update((w) => w - 1);
+          if (this.otpWait() <= 0) clearInterval(this.otpTimer);
+        }, 1000);
+      },
+      error: (e) => { this.otpSending.set(false); this.toast.error(errorMessage(e)); },
+    });
+  }
+
+  confirmDelivery() {
+    if (this.otp.length !== 4 || this.busy()) return;
+    this.move('Delivered', this.otp);
   }
 
   async cancel() {

@@ -21,6 +21,7 @@ const sellerFields = {
   districtIds: Joi.array().items(objectId()).unique(),
   sellsAcrossDistricts: Joi.boolean(),
   shopAddress: Joi.string().trim().min(5).max(300),
+  pincode: Joi.string().trim().allow('').pattern(/^\d{6}$/).messages({ 'string.pattern.base': 'PIN code must be 6 digits' }),
   gstNumber: Joi.string().allow('').uppercase().pattern(/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/).messages({ 'string.pattern.base': 'Invalid GST number' }),
   bankDetails,
   upiId: Joi.string().allow('').pattern(/^[\w.-]+@[\w.-]+$/).messages({ 'string.pattern.base': 'Invalid UPI ID' }),
@@ -30,6 +31,7 @@ const sellerFields = {
     deliveryCharge: Joi.number().min(0),
     freeDeliveryAbove: Joi.number().min(0),
     allowCashOnDelivery: Joi.boolean(),
+    showGstOnInvoice: Joi.boolean(),
   }),
 };
 

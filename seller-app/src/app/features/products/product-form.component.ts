@@ -9,6 +9,7 @@ import { ToastService } from '../../core/services/toast.service';
 import { ConfirmService } from '../../core/services/confirm.service';
 import { errorMessage } from '../../core/interceptors/auth.interceptor';
 import { Product } from '../../core/models/api.models';
+import { compressImage } from '../../core/utils/image';
 import { InrPipe, PageHeaderComponent, SheetComponent, StateComponent } from '../../shared';
 
 interface Cat { _id: string; name: string; subCategories: { _id: string; name: string }[] }
@@ -38,6 +39,8 @@ export class ProductFormComponent implements OnInit {
   f: any = { name: '', categoryId: '', subCategoryId: '', description: '', mrp: null, costPrice: null, sellingPrice: null, gstRate: 0, stock: 0, lowStockThreshold: 5, sku: '', isActive: true };
   existingImages: string[] = [];
   newFiles: { file: File; url: string }[] = [];
+  existingVideos: string[] = [];
+  newVideos: { file: File; url: string }[] = [];
 
   adjustOpen = signal(false);
   adjust = { quantity: null as number | null, mode: 'add', reason: 'Added', note: '' };
@@ -69,7 +72,9 @@ export class ProductFormComponent implements OnInit {
         this.f = { ...product, categoryId: product.categoryId?._id, subCategoryId: product.subCategoryId?._id || '', mrp: product.mrp ?? null, costPrice: product.costPrice ?? null };
         this.catId.set(this.f.categoryId);
         this.existingImages = [...product.images];
+        this.existingVideos = [...((product as any).videos || [])];
         this.newFiles = [];
+        this.newVideos = [];
         this.loading.set(false);
       },
       error: (e) => { this.toast.error(errorMessage(e)); this.router.navigate(['/products']); },
@@ -81,14 +86,43 @@ export class ProductFormComponent implements OnInit {
     this.f.subCategoryId = '';
   }
 
-  addImages(e: Event) {
-    const files = Array.from((e.target as HTMLInputElement).files ?? []);
-    for (const file of files) {
+  async addImages(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+    for (const original of files) {
       if (this.existingImages.length + this.newFiles.length >= 6) { this.toast.warning('Maximum 6 images'); break; }
-      if (file.size > 5 * 1024 * 1024) { this.toast.warning(`${file.name} is larger than 5 MB`); continue; }
+      if (original.size > 15 * 1024 * 1024) { this.toast.warning(`${original.name} is larger than 15 MB`); continue; }
+      const file = await compressImage(original);
       this.newFiles.push({ file, url: URL.createObjectURL(file) });
     }
-    (e.target as HTMLInputElement).value = '';
+  }
+
+  addVideos(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+    for (const file of files) {
+      if (this.existingVideos.length + this.newVideos.length >= 2) { this.toast.warning('Maximum 2 videos'); break; }
+      if (file.size > 60 * 1024 * 1024) { this.toast.warning(`${file.name} is larger than 60 MB`); continue; }
+      this.newVideos.push({ file, url: URL.createObjectURL(file) });
+    }
+  }
+
+  /** Adds a sub-category to the selected category (shared with all shops) and selects it. */
+  async addSubCategory() {
+    if (!this.f.categoryId) return this.toast.warning('Select a category first');
+    const name = await this.confirm.prompt('New sub-category', `It will be added under ${this.categories().find((c) => c._id === this.f.categoryId)?.name}.`, 'Sub-category name', 'Add');
+    if (!name?.trim()) return;
+    this.api.post<{ _id: string; name: string }>(`/categories/${this.f.categoryId}/subcategories`, { name: name.trim() }).subscribe({
+      next: (r) => {
+        const sub = { _id: r.data._id, name: r.data.name };
+        this.categories.update((cats) => cats.map((c) => (c._id === this.f.categoryId && !c.subCategories.some((s) => s._id === sub._id) ? { ...c, subCategories: [...c.subCategories, sub].sort((a, b) => a.name.localeCompare(b.name)) } : c)));
+        this.f.subCategoryId = sub._id;
+        this.toast.success(r.message || 'Sub-category added');
+      },
+      error: (err) => this.toast.error(errorMessage(err)),
+    });
   }
 
   valid() {
@@ -106,8 +140,12 @@ export class ProductFormComponent implements OnInit {
       const v = this.f[k];
       if (v !== null && v !== undefined && !(this.isEdit && k === 'isActive' && this.product()?.disabledByAdmin)) fd.append(k, String(v));
     });
-    if (this.isEdit) fd.append('keepImages', JSON.stringify(this.existingImages));
+    if (this.isEdit) {
+      fd.append('keepImages', JSON.stringify(this.existingImages));
+      fd.append('keepVideos', JSON.stringify(this.existingVideos));
+    }
     this.newFiles.forEach((n) => fd.append('images', n.file));
+    this.newVideos.forEach((n) => fd.append('videos', n.file));
     this.saving.set(true);
     const url = `${this.api.base}/products${this.isEdit ? '/' + this.id : ''}`;
     (this.isEdit ? this.http.put<any>(url, fd) : this.http.post<any>(url, fd)).subscribe({

@@ -87,6 +87,7 @@ router.post(
   })),
   shop.createOrder
 );
+router.post('/orders/check-delivery', validate(Joi.object({ addressId: objectId().required() })), shop.checkDelivery);
 router.post('/orders/verify-payment', validate(Joi.object({ orderId: Joi.string().required(), razorpayOrderId: Joi.string(), razorpayPaymentId: Joi.string(), razorpaySignature: Joi.string(), method: Joi.string(), mock: Joi.boolean() })), shop.verifyPayment);
 router.get('/orders', shop.listOrders);
 router.get('/orders/:orderId', shop.getOrder);

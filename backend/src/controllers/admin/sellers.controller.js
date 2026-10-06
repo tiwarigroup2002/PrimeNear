@@ -116,10 +116,20 @@ async function getOne(req, res) {
   });
 }
 
+/** The shop's PIN code is added to its tahsil, so addresses with that PIN are inside the delivery area. */
+async function attachPincode(pincode, tahsilId) {
+  if (!pincode) return;
+  const owner = await Tahsil.findOne({ pincodes: pincode }).select('name');
+  if (owner && String(owner._id) !== String(tahsilId)) throw ApiError.badRequest(`PIN code ${pincode} belongs to tahsil ${owner.name}. Pick that tahsil or fix the PIN code.`);
+  if (!owner) await Tahsil.updateOne({ _id: tahsilId }, { $addToSet: { pincodes: pincode } });
+}
+
 async function create(req, res) {
   const body = { ...req.body };
   const { districtIds, tahsil } = await validateLocation(body.tahsilId, body.districtIds);
   body.districtIds = districtIds;
+  if (body.pincode) await attachPincode(body.pincode, tahsil._id);
+  else delete body.pincode;
   if (await Seller.exists({ shopName: new RegExp(`^${body.shopName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') })) {
     throw ApiError.conflict('A shop with this name already exists');
   }
@@ -139,6 +149,8 @@ async function update(req, res) {
     const homeDistrict = String(loc.tahsil.districtId);
     if (body.districtIds.some((id) => String(id) !== homeDistrict)) body.sellsAcrossDistricts = true;
   }
+  if (body.pincode) await attachPincode(body.pincode, body.tahsilId || seller.tahsilId);
+  else if (body.pincode === '') body.pincode = undefined;
   if ('commissionRate' in body && !effectivePermissions(req.admin).includes('sellers.commission')) {
     throw ApiError.forbidden('You cannot change seller commission');
   }

@@ -9,11 +9,14 @@ import { ToastService } from '../core/services/toast.service';
 import { ConfirmService } from '../core/services/confirm.service';
 import { errorMessage } from '../core/interceptors/auth.interceptor';
 import { SheetComponent } from '../shared/components/bottom-sheet.component';
+import { StatusBadgeComponent } from '../shared/components/status-badge.component';
+import { InrPipe } from '../shared/pipes/inr.pipe';
+import { TimeAgoPipe } from '../shared/pipes/time-ago.pipe';
 import { NAV, TABS } from './nav';
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, SheetComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, SheetComponent, StatusBadgeComponent, InrPipe, TimeAgoPipe],
   templateUrl: './shell.component.html',
 })
 export class ShellComponent implements OnInit {
@@ -31,6 +34,9 @@ export class ShellComponent implements OnInit {
   moreOpen = signal(false);
   shopOpen = signal(false);
   unread = signal(0);
+  openOrders = signal(0);
+  ordersOpen = signal(false);
+  recentOrders = signal<any[] | null>(null);
 
   ngOnInit() {
     this.auth.refreshMe().subscribe({ error: () => {} });
@@ -41,12 +47,20 @@ export class ShellComponent implements OnInit {
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe(() => {
       this.moreOpen.set(false);
       this.shopOpen.set(false);
+      this.ordersOpen.set(false);
       this.loadUnread();
     });
   }
 
   loadUnread() {
     this.api.get<any>('/notifications', { limit: 1 }).subscribe({ next: (r) => this.unread.set(r.unreadCount), error: () => {} });
+    this.api.get<any>('/orders', { status: 'open', limit: 1 }).subscribe({ next: (r) => this.openOrders.set(r.totalCount), error: () => {} });
+  }
+
+  openRecentOrders() {
+    this.recentOrders.set(null);
+    this.ordersOpen.set(true);
+    this.api.get<any>('/orders', { limit: 8 }).subscribe({ next: (r) => this.recentOrders.set(r.items), error: () => this.recentOrders.set([]) });
   }
 
   switchShop(id: string) {

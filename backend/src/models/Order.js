@@ -73,6 +73,11 @@ const orderSchema = new mongoose.Schema(
     payoutId: { type: mongoose.Schema.Types.ObjectId, ref: 'Payout' },
     invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' },
     isRated: { type: Boolean, default: false },
+    // Code the customer gives the shop at handover. Hidden from normal queries (the seller must not see it).
+    deliveryOtp: {
+      type: new mongoose.Schema({ code: String, sentAt: Date, attempts: { type: Number, default: 0 } }, { _id: false }),
+      select: false,
+    },
   },
   { timestamps: true }
 );

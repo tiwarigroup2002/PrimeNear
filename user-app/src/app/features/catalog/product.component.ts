@@ -31,6 +31,9 @@ import { InrPipe, ProductCardComponent, StarsComponent, StateComponent } from '.
               }
             </div>
           }
+          @for (v of p.videos || []; track v) {
+            <video class="product-video mt-2" [src]="v" controls playsinline preload="metadata"></video>
+          }
         </div>
         <div class="col-lg-7">
           <div class="small text-muted">{{ p.categoryId?.name }}@if (p.subCategoryId?.name) { › {{ p.subCategoryId.name }} }</div>

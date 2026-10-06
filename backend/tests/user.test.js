@@ -72,6 +72,15 @@ describe('Browsing', () => {
     expect(cats.body.data[0].productCount).toBe(2);
   });
 
+  test('a shop that added the customer is shown wherever the phone is', async () => {
+    await U(token).post('/location/update').send({ latitude: 28.6, longitude: 77.2 }).expect(200); // outside every tahsil
+    const home = await U(token).get('/home').expect(200);
+    expect(home.body.data.seller.shopName).toBe('User Shop A');
+    const shops = await U(token).get('/sellers').expect(200);
+    expect(shops.body.data.sellers).toHaveLength(2);
+    await U(token).post('/location/update').send({ latitude: 22.701, longitude: 75.801 }).expect(200);
+  });
+
   test('cannot see products of a shop the user is not linked to', async () => {
     const shopC = await Seller.create({ shopName: 'Shop C', ownerName: 'C', mobileNumber: '9811111113', tahsilId: loc.tahsil._id, shopAddress: 'C' });
     const pc = await Product.create({ sellerId: shopC._id, categoryId: cat.category._id, name: 'Secret', sellingPrice: 10, stock: 1 });
@@ -119,6 +128,23 @@ describe('Cart & checkout', () => {
     await U(token).delete(`/addresses/${b.body.data._id}`).expect(200);
     const list = await U(token).get('/addresses').expect(200);
     expect(list.body.data[0].isDefault).toBe(true);
+  });
+
+  test('delivery address must be inside the shop area (PIN code / tahsil)', async () => {
+    const far = await U(token).post('/addresses').send({ fullAddress: 'Connaught Place', city: 'Delhi', zipCode: '110001' }).expect(201);
+    const farCheck = await U(token).post('/orders/check-delivery').send({ addressId: far.body.data._id }).expect(200);
+    expect(farCheck.body.data.deliverable).toBe(false);
+    const noPin = await U(token).post('/addresses').send({ fullAddress: 'Somewhere without pin' }).expect(201);
+    expect((await U(token).post('/orders/check-delivery').send({ addressId: noPin.body.data._id }).expect(200)).body.data.deliverable).toBe(false);
+    const res = await U(token).post('/orders/create').send({ deliveryAddressId: far.body.data._id, paymentMethod: 'Cash' }).expect(400);
+    expect(res.body.message).toMatch(/delivery area/);
+    // Same PIN code as the shop always works, even if no tahsil lists it
+    await Seller.updateOne({ _id: shopA._id }, { pincode: '452099' });
+    const samePin = await U(token).post('/addresses').send({ fullAddress: 'Near the shop', zipCode: '452099' }).expect(201);
+    expect((await U(token).post('/orders/check-delivery').send({ addressId: samePin.body.data._id }).expect(200)).body.data.deliverable).toBe(true);
+    expect((await U(token).post('/orders/check-delivery').send({ addressId }).expect(200)).body.data.deliverable).toBe(true);
+    for (const a of [far, noPin, samePin]) await U(token).delete(`/addresses/${a.body.data._id}`).expect(200);
+    await U(token).post(`/addresses/${addressId}/set-default`).expect(200);
   });
 
   test('online order (test payment) reserves stock, hidden from seller until paid', async () => {
@@ -171,9 +197,13 @@ describe('Cart & checkout', () => {
   test('delivered order: invoice, review updates ratings, return approved by seller refunds', async () => {
     const paid = await Order.findOne({ userId: user._id, paymentStatus: 'Completed' });
     const sellerToken = signShopToken(shopA);
-    for (const s of ['Confirmed', 'Packed', 'Shipped', 'Delivered']) {
+    for (const s of ['Confirmed', 'Packed', 'Shipped']) {
       await request(app).put(`/api/seller/orders/${paid._id}/status`).set('Authorization', `Bearer ${sellerToken}`).send({ status: s }).expect(200);
     }
+    await request(app).post(`/api/seller/orders/${paid._id}/delivery-otp`).set('Authorization', `Bearer ${sellerToken}`).expect(200);
+    const shown = await U(token).get(`/orders/${paid._id}`).expect(200);
+    expect(shown.body.data.deliveryCode).toMatch(/^\d{4}$/); // the customer sees the code in the app
+    await request(app).put(`/api/seller/orders/${paid._id}/status`).set('Authorization', `Bearer ${sellerToken}`).send({ status: 'Delivered', otp: shown.body.data.deliveryCode }).expect(200);
     const inv = await U(token).get(`/orders/${paid._id}/invoice`).expect(200);
     await U(token).get(`/invoices/${inv.body.data.invoiceId}`).expect(200);
     const pdf = await U(token).get(`/invoices/${inv.body.data.invoiceId}/download`).expect(200);

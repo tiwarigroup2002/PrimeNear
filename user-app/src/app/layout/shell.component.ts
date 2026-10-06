@@ -8,11 +8,15 @@ import { ApiService } from '../core/services/api.service';
 import { ToastService } from '../core/services/toast.service';
 import { ConfirmService } from '../core/services/confirm.service';
 import { errorMessage } from '../core/interceptors/auth.interceptor';
+import { DatePipe } from '@angular/common';
+import { Paged } from '../core/models/api.models';
 import { SheetComponent } from '../shared/components/bottom-sheet.component';
+import { StatusBadgeComponent } from '../shared/components/status-badge.component';
+import { InrPipe } from '../shared/pipes/inr.pipe';
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, FormsModule, SheetComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, FormsModule, DatePipe, SheetComponent, StatusBadgeComponent, InrPipe],
   templateUrl: './shell.component.html',
 })
 export class ShellComponent implements OnInit {
@@ -25,8 +29,9 @@ export class ShellComponent implements OnInit {
   private destroyRef = inject(DestroyRef);
 
   shopsOpen = signal(false);
+  ordersOpen = signal(false);
+  recentOrders = signal<any[] | null>(null);
   unread = signal(0);
-  place = signal('');
   q = '';
 
   ngOnInit() {
@@ -36,31 +41,35 @@ export class ShellComponent implements OnInit {
     this.loadUnread();
     const t = setInterval(() => this.loadUnread(), 60000);
     this.destroyRef.onDestroy(() => clearInterval(t));
-    this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe(() => this.shopsOpen.set(false));
+    this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe(() => {
+      this.shopsOpen.set(false);
+      this.ordersOpen.set(false);
+    });
   }
 
   loadUnread() {
     this.api.get<any>('/notifications', { limit: 1 }).subscribe({ next: (r) => this.unread.set(r.unreadCount), error: () => {} });
   }
 
+  /** Saves the phone location (used for reports). Shops are shown whatever the location is. */
   syncLocation() {
-    if (!navigator.geolocation) {
-      this.place.set('Location is off');
-      return;
-    }
+    if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        this.api.post<any>('/location/update', { latitude: pos.coords.latitude, longitude: pos.coords.longitude }).subscribe({
-          next: (r) => {
-            this.place.set(r.data?.tahsilName || 'Outside service area');
-            this.auth.refreshMe().subscribe({ next: () => this.auth.noteLocation(), error: () => this.auth.noteLocation() });
-          },
-          error: () => this.place.set('Location not saved'),
-        });
+        this.api.post<any>('/location/update', { latitude: pos.coords.latitude, longitude: pos.coords.longitude }).subscribe({ error: () => {} });
       },
-      () => this.place.set('Allow location to order'),
-      { enableHighAccuracy: true, timeout: 8000 }
+      () => {},
+      { timeout: 8000 }
     );
+  }
+
+  openOrders() {
+    this.recentOrders.set(null);
+    this.ordersOpen.set(true);
+    this.api.get<Paged<any>>('/orders', { limit: 5, includeStore: 'true' }).subscribe({
+      next: (r) => this.recentOrders.set(r.items),
+      error: () => this.recentOrders.set([]),
+    });
   }
 
   search() {

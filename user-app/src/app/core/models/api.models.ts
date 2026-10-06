@@ -64,6 +64,7 @@ export interface Product {
   name: string;
   description?: string;
   images: string[];
+  videos?: string[];
   mrp?: number;
   sellingPrice: number;
   gstRate: number;

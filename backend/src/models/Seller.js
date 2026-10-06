@@ -15,6 +15,8 @@ const sellerSchema = new mongoose.Schema(
     tahsilId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tahsil', required: true },
     districtIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'District' }],
     shopAddress: { type: String, required: true },
+    // PIN code of the shop. Delivery is always allowed to addresses with the same PIN code.
+    pincode: { type: String, match: /^\d{6}$/ },
     shopImage: String,
     gstNumber: { type: String, uppercase: true, trim: true },
     bankDetails: {
@@ -40,6 +42,8 @@ const sellerSchema = new mongoose.Schema(
       deliveryCharge: { type: Number, default: 0 },
       freeDeliveryAbove: { type: Number, default: 1000 },
       allowCashOnDelivery: { type: Boolean, default: true },
+      // Print the GSTIN on bills / invoices
+      showGstOnInvoice: { type: Boolean, default: true },
       notifications: {
         push: { type: Boolean, default: true },
         whatsapp: { type: Boolean, default: true },

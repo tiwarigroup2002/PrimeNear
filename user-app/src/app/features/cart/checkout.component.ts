@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
@@ -50,6 +50,15 @@ import { AddressFormComponent, InrPipe, PageHeaderComponent, SheetComponent, Sta
                 </button>
               }
               @if (!addresses().length) { <div class="text-muted small">No saved address. <a href="" (click)="$event.preventDefault(); addrOpen.set(true)">Add one</a> to get home delivery.</div> }
+              @if (addressId()) {
+                @if (areaCheck() === null) {
+                  <div class="small text-muted mt-1"><span class="spinner-border spinner-border-sm me-1"></span>Checking delivery area...</div>
+                } @else if (areaCheck()!.deliverable) {
+                  <div class="small text-success mt-1"><i class="bi bi-check-circle me-1"></i>{{ areaCheck()!.message }}</div>
+                } @else {
+                  <div class="alert alert-warning small py-2 mt-2 mb-0"><i class="bi bi-geo-alt me-1"></i>{{ areaCheck()!.message }}</div>
+                }
+              }
             </div></div>
           }
 
@@ -83,6 +92,10 @@ import { AddressFormComponent, InrPipe, PageHeaderComponent, SheetComponent, Sta
             <div class="summary-row summary-total"><span>To pay</span><span>{{ c.totals.total | inr }}</span></div>
             @if (c.totals.savings) { <div class="text-success small fw-semibold mt-2">You save {{ c.totals.savings | inr }}</div> }
           </div></div>
+          <div class="open-box mt-2">
+            <i class="bi bi-box-seam"></i>
+            <div><strong>Open Box Delivery</strong><div class="small">Open and check your items in front of the shop or delivery person before you accept them. Returns are not available after delivery.</div></div>
+          </div>
           @if (!c.canCheckout) { <div class="alert alert-warning small mt-2 py-2">Some items are unavailable. <a routerLink="/cart">Review cart</a></div> }
           <div class="checkout-bar">
             <div class="d-lg-none"><div class="fw-bold">{{ c.totals.total | inr }}</div><small class="text-muted">To pay</small></div>
@@ -123,8 +136,27 @@ export class CheckoutComponent implements OnInit {
   canPlace = computed(() => {
     const c = this.c();
     if (!c?.canCheckout || !this.method()) return false;
-    return this.deliveryType() === 'Pickup' || !!this.addressId();
+    return this.deliveryType() === 'Pickup' || (!!this.addressId() && !!this.areaCheck()?.deliverable);
   });
+
+  /** Result of the delivery-area check for the selected address (null while checking). */
+  areaCheck = signal<{ deliverable: boolean; message: string } | null>(null);
+
+  constructor() {
+    effect(() => {
+      const id = this.addressId();
+      if (!id || this.deliveryType() !== 'Delivery') return;
+      untracked(() => this.checkArea(id));
+    });
+  }
+
+  private checkArea(id: string) {
+    this.areaCheck.set(null);
+    this.api.post<{ deliverable: boolean; message: string }>('/orders/check-delivery', { addressId: id }).subscribe({
+      next: (r) => { if (this.addressId() === id) this.areaCheck.set(r.data); },
+      error: (e) => this.areaCheck.set({ deliverable: false, message: errorMessage(e) }),
+    });
+  }
 
   ngOnInit() {
     this.api.get<Address[]>('/addresses').subscribe({

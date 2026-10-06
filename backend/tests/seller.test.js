@@ -131,6 +131,25 @@ describe('Products & inventory', () => {
     expect(hist.body.data.totalCount).toBe(2);
   });
 
+  test('seller adds a sub-category; product with a video', async () => {
+    const add = await S(token).post(`/categories/${catalog.category._id}/subcategories`).send({ name: 'Sports Shoes' }).expect(201);
+    const again = await S(token).post(`/categories/${catalog.category._id}/subcategories`).send({ name: 'sports  shoes' }).expect(200);
+    expect(again.body.data._id).toBe(add.body.data._id);
+    const res = await S(token)
+      .post('/products')
+      .field('name', 'Runner')
+      .field('categoryId', String(catalog.category._id))
+      .field('subCategoryId', add.body.data._id)
+      .field('sellingPrice', '1000')
+      .field('gstRate', '18')
+      .attach('videos', Buffer.from('not really a video'), { filename: 'demo.mp4', contentType: 'video/mp4' })
+      .expect(201);
+    expect(res.body.data.videos).toHaveLength(1);
+    await S(token).put(`/products/${res.body.data._id}`).field('keepVideos', '[]').expect(200);
+    expect((await Product.findById(res.body.data._id)).videos).toHaveLength(0);
+    await S(token).post('/products').field('name', 'Bad').field('categoryId', String(catalog.category._id)).field('sellingPrice', '10').attach('videos', Buffer.from('x'), { filename: 'a.txt', contentType: 'text/plain' }).expect(400);
+  });
+
   test('bulk CSV upload with errors', async () => {
     const csv = `name,category,subCategory,sellingPrice,gstRate,stock\nJeans,${catalog.category.name},Casual,800,5,20\nBad,Nope,,10,0,1\nNoPrice,${catalog.category.name},,,0,1\n`;
     const res = await S(token).post('/products/bulk-upload').attach('csvFile', Buffer.from(csv), 'p.csv').expect(200);
@@ -146,6 +165,16 @@ describe('Customers, bills & orders', () => {
     const res = await S(token).post('/customers').send({ mobileNumber: '9827055555', name: 'Raj' }).expect(201);
     customerId = res.body.data._id;
     await S(token).post('/customers').send({ mobileNumber: '9827055555' }).expect(409);
+    // Phone number can be corrected; the shop link moves to the new number
+    const other = await S(token).post('/customers').send({ mobileNumber: '9827055556', name: 'Other' }).expect(201);
+    await S(token).put(`/customers/${customerId}`).send({ mobileNumber: '9827055556' }).expect(409);
+    await S(token).put(`/customers/${customerId}`).send({ mobileNumber: '9827055557' }).expect(200);
+    const { User } = require('../src/models');
+    const moved = await Customer.findById(customerId).populate('userId', 'mobileNumber');
+    expect(moved.userId.mobileNumber).toBe('9827055557');
+    expect(await User.exists({ mobileNumber: '9827055555' })).toBeTruthy();
+    await S(token).put(`/customers/${customerId}`).send({ mobileNumber: '9827055555', name: 'Raj' }).expect(200);
+    await S(token).delete(`/customers/${other.body.data._id}`).expect(200);
     await S(token).post('/products').field('name', 'Blue Jeans').field('categoryId', String(catalog.category._id)).field('sellingPrice', '950').field('gstRate', '18').field('stock', '5').expect(201);
     expect(await Notification.countDocuments({ recipientType: 'User', type: 'NewProduct' })).toBe(1);
     const csv = 'mobileNumber,name\n9827066666,Priya\n123,Bad\n';
@@ -188,7 +217,18 @@ describe('Customers, bills & orders', () => {
     });
     const o = await mk();
     await S(token).put(`/orders/${o._id}/status`).send({ status: 'Shipped' }).expect(400); // skipping steps
-    for (const s of ['Confirmed', 'Packed', 'Shipped', 'Delivered']) await S(token).put(`/orders/${o._id}/status`).send({ status: s }).expect(200);
+    for (const s of ['Confirmed', 'Packed', 'Shipped']) await S(token).put(`/orders/${o._id}/status`).send({ status: s }).expect(200);
+    // Delivery needs the code the customer received
+    await S(token).put(`/orders/${o._id}/status`).send({ status: 'Delivered' }).expect(400);
+    await S(token).post(`/orders/${o._id}/delivery-otp`).expect(200);
+    await S(token).post(`/orders/${o._id}/delivery-otp`).expect(429);
+    const seen = await S(token).get(`/orders/${o._id}`).expect(200);
+    expect(JSON.stringify(seen.body).includes('"code"')).toBe(false); // the seller never sees the code
+    expect(!!seen.body.data.deliveryOtpSentAt).toBe(true);
+    const { code } = (await Order.findById(o._id).select('+deliveryOtp')).deliveryOtp;
+    await S(token).put(`/orders/${o._id}/status`).send({ status: 'Delivered', otp: code === '1111' ? '2222' : '1111' }).expect(400);
+    await S(token).put(`/orders/${o._id}/status`).send({ status: 'Delivered', otp: code }).expect(200);
+    expect(await Notification.countDocuments({ recipientType: 'User', recipientId: user, title: `Delivery code: ${code}` })).toBe(1);
     const after = await Order.findById(o._id);
     expect(!!after.invoiceId).toBe(true);
     await S(token).put(`/orders/${o._id}/add-note`).send({ note: 'Handed over' }).expect(200);

@@ -55,6 +55,9 @@ import { InrPipe, PageHeaderComponent, SheetComponent, StateComponent, StatusBad
 
       <app-sheet [open]="editOpen()" title="Edit customer" (closed)="editOpen.set(false)">
         <label class="form-label">Name</label><input class="form-control mb-2" [(ngModel)]="edit.name" />
+        <label class="form-label">Phone number</label>
+        <div class="input-group mb-1"><span class="input-group-text">+91</span><input class="form-control" maxlength="10" inputmode="numeric" [(ngModel)]="edit.mobileNumber" /></div>
+        @if (edit.mobileNumber && edit.mobileNumber !== d.customer.mobileNumber) { <div class="form-text text-warning mb-2">The new number gets access to your shop in the user app; the old number loses it.</div> } @else { <div class="mb-2"></div> }
         <label class="form-label">Email</label><input class="form-control mb-2" type="email" [(ngModel)]="edit.email" />
         <label class="form-label">Address</label><textarea class="form-control mb-2" rows="2" [(ngModel)]="edit.address"></textarea>
         <div sheet-footer class="sheet-footer"><button class="btn btn-light" (click)="editOpen.set(false)">Cancel</button><button class="btn btn-primary" (click)="save()">Save</button></div>
@@ -83,12 +86,16 @@ export class CustomerDetailComponent implements OnInit {
 
   openEdit() {
     const c = this.d().customer;
-    this.edit = { name: c.name || '', email: c.email || '', address: c.address || '' };
+    this.edit = { name: c.name || '', mobileNumber: c.mobileNumber, email: c.email || '', address: c.address || '' };
     this.editOpen.set(true);
   }
 
   save() {
-    this.api.put(`/customers/${this.id}`, this.edit).subscribe({ next: () => { this.toast.success('Saved'); this.editOpen.set(false); this.load(); }, error: (e) => this.toast.error(errorMessage(e)) });
+    const mobile = String(this.edit.mobileNumber || '').replace(/\D/g, '').slice(-10);
+    if (!/^[6-9]\d{9}$/.test(mobile)) return this.toast.warning('Enter a valid 10 digit phone number');
+    const body = { ...this.edit, mobileNumber: mobile };
+    if (mobile === this.d().customer.mobileNumber) delete body.mobileNumber;
+    this.api.put(`/customers/${this.id}`, body).subscribe({ next: () => { this.toast.success('Saved'); this.editOpen.set(false); this.load(); }, error: (e) => this.toast.error(errorMessage(e)) });
   }
 
   newBill() {

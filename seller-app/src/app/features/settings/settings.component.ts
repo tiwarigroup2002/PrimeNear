@@ -32,6 +32,10 @@ import { PageHeaderComponent, StateComponent } from '../../shared';
               <label class="form-label">Email</label><input class="form-control mb-2" type="email" [(ngModel)]="profile.email" />
               <label class="form-label">Shop address</label><textarea class="form-control mb-2" rows="2" [(ngModel)]="profile.shopAddress"></textarea>
               <label class="form-label">GST number</label><input class="form-control mb-2 text-uppercase" [(ngModel)]="profile.gstNumber" placeholder="23AABCT0123A1Z0" />
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="showgst" [ngModel]="showGst" (ngModelChange)="toggleGst($event)" />
+                <label class="form-check-label" for="showgst">Show GST number on bills</label>
+              </div>
               <div class="form-text mb-2">Shop name, mobile number and location can only be changed by the admin.</div>
               <button class="btn btn-primary" (click)="saveProfile()">Save</button>
             </div>
@@ -132,6 +136,7 @@ export class SettingsComponent implements OnInit {
     this.profile = { ownerName: s.ownerName, email: s.email || '', shopAddress: s.shopAddress, gstNumber: s.gstNumber || '' };
     this.bank = { accountHolder: '', accountNumber: '', ifscCode: '', bankName: '', ...(s.bankDetails || {}), upiId: s.upiId || '' };
     const st = s.settings || {};
+    this.showGst = st.showGstOnInvoice !== false;
     this.settings = { enableDelivery: !!st.enableDelivery, deliveryCharge: st.deliveryCharge ?? 0, freeDeliveryAbove: st.freeDeliveryAbove ?? 1000, allowCashOnDelivery: st.allowCashOnDelivery !== false, notifications: { push: true, whatsapp: true, sms: true, ...(st.notifications || {}) } };
   }
 
@@ -139,6 +144,13 @@ export class SettingsComponent implements OnInit {
     next: (r: any) => { this.toast.success(msg); this.apply(r.data); },
     error: (e: any) => this.toast.error(errorMessage(e)),
   });
+
+  showGst = true;
+
+  toggleGst(on: boolean) {
+    this.showGst = on;
+    this.api.put<any>('/settings', { showGstOnInvoice: on }).subscribe(this.done(on ? 'GST number will be shown on bills' : 'GST number hidden on bills'));
+  }
 
   saveProfile() {
     const g = this.profile.gstNumber.trim().toUpperCase();

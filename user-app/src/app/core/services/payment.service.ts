@@ -40,7 +40,7 @@ export class PaymentService {
         name: this.cfg.config().platformName,
         description: `Order ${order.orderId}`,
         prefill: { contact: user?.mobileNumber ? '+91' + user.mobileNumber : undefined, name: user?.name, email: user?.email },
-        theme: { color: '#4f46e5' },
+        theme: { color: '#d70f64' },
         handler: async (resp: any) => {
           try {
             await firstValueFrom(this.api.post('/orders/verify-payment', { orderId: order._id, razorpayOrderId: resp.razorpay_order_id, razorpayPaymentId: resp.razorpay_payment_id, razorpaySignature: resp.razorpay_signature }));

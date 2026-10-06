@@ -24,6 +24,16 @@ const RETURN_REASONS = ['Damaged / broken item', 'Wrong item received', 'Item mi
     @if (o(); as o) {
       <div class="row g-3">
         <div class="col-lg-7">
+          @if (d().deliveryCode) {
+            <div class="card mb-3" style="border-color: rgba(var(--bs-primary-rgb), .4)"><div class="card-body d-flex align-items-center gap-3 flex-wrap">
+              <i class="bi bi-shield-lock fs-2 text-primary"></i>
+              <div class="flex-grow-1">
+                <div class="fw-semibold">Delivery code</div>
+                <div class="small text-muted">Open the box and check your items. Tell this code to the shop only after you receive them.</div>
+              </div>
+              <span class="delivery-code">{{ d().deliveryCode }}</span>
+            </div></div>
+          }
           @if (d().canPay) {
             <div class="alert alert-warning d-flex align-items-center gap-2 flex-wrap">
               <i class="bi bi-hourglass-split fs-4"></i>
@@ -88,7 +98,7 @@ const RETURN_REASONS = ['Damaged / broken item', 'Wrong item received', 'Item mi
             @if (d().canReview) { <button class="btn btn-primary" (click)="openRate()"><i class="bi bi-star me-1"></i>{{ d().reviews.length ? 'Edit your rating' : 'Rate this order' }}</button> }
             @if (o.source === 'Online' && ['Delivered', 'Cancelled', 'Returned'].includes(o.orderStatus)) { <button class="btn btn-outline-primary" (click)="reorder()" [disabled]="busy()"><i class="bi bi-arrow-repeat me-1"></i>Order again</button> }
             @if (['Delivered', 'Returned'].includes(o.orderStatus)) { <button class="btn btn-outline-secondary" (click)="invoice()"><i class="bi bi-receipt me-1"></i>View invoice</button> }
-            @if (d().canReturn) { <button class="btn btn-outline-secondary" (click)="returnOpen.set(true)"><i class="bi bi-arrow-return-left me-1"></i>Return items</button><small class="text-muted text-center">Return window closes {{ d().returnDeadline | date: 'd MMM, h:mm a' }}</small> }
+            @if (d().canReturn) { <button class="btn btn-outline-secondary" (click)="returnOpen.set(true)"><i class="bi bi-arrow-return-left me-1"></i>Return / item issue</button><small class="text-muted text-center">You can raise an issue until {{ d().returnDeadline | date: 'd MMM, h:mm a' }}</small> }
             @if (d().canCancel) { <button class="btn btn-outline-danger" (click)="cancelOpen.set(true)"><i class="bi bi-x-circle me-1"></i>Cancel order</button> }
             <div class="d-flex gap-2">
               @if (o.sellerId?.mobileNumber) { <a class="btn btn-light flex-grow-1" [href]="'tel:+91' + o.sellerId.mobileNumber"><i class="bi bi-telephone me-1"></i>Call shop</a> }
@@ -133,20 +143,32 @@ const RETURN_REASONS = ['Damaged / broken item', 'Wrong item received', 'Item mi
       </div>
     </app-sheet>
 
-    <app-sheet [open]="returnOpen()" title="Return items" (closed)="returnOpen.set(false)">
+    <app-sheet [open]="returnOpen()" title="Return / item issue" (closed)="returnOpen.set(false)">
+      <div class="alert alert-light border small py-2"><i class="bi bi-box-seam me-1"></i>This was an <strong>Open Box Delivery</strong>. Returns depend on the shop; tell them what went wrong or talk to them directly.</div>
+      <label class="form-label">Order code</label>
+      <div class="input-group mb-2">
+        <input class="form-control" [value]="o()?.orderId" readonly />
+        <button class="btn btn-outline-secondary" type="button" (click)="copyCode()" aria-label="Copy order code"><i class="bi bi-copy"></i></button>
+      </div>
       <label class="form-label required">Reason</label>
       <select class="form-select mb-2" [(ngModel)]="ret.reason"><option value="">Choose a reason</option>@for (r of returnReasons; track r) { <option [value]="r">{{ r }}</option> }</select>
-      <label class="form-label">Details</label>
+      <label class="form-label">Comment</label>
       <textarea class="form-control mb-2" rows="3" [(ngModel)]="ret.description" maxlength="1000" placeholder="Tell the shop what went wrong"></textarea>
+      <div class="d-flex gap-2 mb-3">
+        @if (o()?.sellerId?.mobileNumber) {
+          <a class="btn btn-sm btn-outline-primary flex-grow-1" [href]="'tel:+91' + o().sellerId.mobileNumber"><i class="bi bi-telephone me-1"></i>Call shop</a>
+          <a class="btn btn-sm btn-outline-success flex-grow-1" [href]="whatsappLink()" target="_blank" rel="noopener"><i class="bi bi-whatsapp me-1"></i>WhatsApp shop</a>
+        }
+      </div>
       <label class="form-label">Photos (up to 4)</label>
       <div class="d-flex flex-wrap gap-2 mb-2">
         @for (f of retFiles(); track $index) { <div class="img-tile"><img [src]="f.url" alt="" /><button class="btn btn-danger btn-sm" (click)="removeRetFile($index)" aria-label="Remove">×</button></div> }
         @if (retFiles().length < 4) { <label class="img-tile d-flex align-items-center justify-content-center border rounded-3 text-muted" style="cursor:pointer"><i class="bi bi-camera fs-4"></i><input type="file" accept="image/*" hidden multiple (change)="addRetFiles($event)" /></label> }
       </div>
-      <small class="text-muted">The shop will check your request. If approved, the refund goes to your original payment method.</small>
+      <small class="text-muted">The shop sees your request with the order code. If they approve a return, the refund goes to your original payment method.</small>
       <div sheet-footer>
         <button class="btn btn-light" (click)="returnOpen.set(false)">Close</button>
-        <button class="btn btn-primary" (click)="submitReturn()" [disabled]="busy() || !ret.reason">Submit request</button>
+        <button class="btn btn-primary" (click)="submitReturn()" [disabled]="busy() || !ret.reason">Send to shop</button>
       </div>
     </app-sheet>
 
@@ -264,6 +286,15 @@ export class OrderDetailComponent implements OnInit {
 
   removeRetFile(i: number) {
     this.retFiles.set(this.retFiles().filter((_, idx) => idx !== i));
+  }
+
+  copyCode() {
+    navigator.clipboard?.writeText(this.o().orderId).then(() => this.toast.success('Order code copied'), () => {});
+  }
+
+  whatsappLink() {
+    const text = `Hello ${this.o().sellerId?.shopName}, I have a question about my order ${this.o().orderId}.${this.ret.description ? ' ' + this.ret.description : ''}`;
+    return `https://wa.me/91${this.o().sellerId?.mobileNumber}?text=${encodeURIComponent(text)}`;
   }
 
   submitReturn() {

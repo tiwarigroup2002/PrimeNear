@@ -37,6 +37,9 @@ async function listDistricts(req, res) {
 async function createDistrict(req, res) {
   if (await District.exists({ name: ciExact(req.body.name) })) throw ApiError.conflict('District already exists');
   const { tahsils = [], ...body } = req.body;
+  const pins = tahsils.flatMap((t) => t.pincodes || []);
+  if (new Set(pins).size !== pins.length) throw ApiError.badRequest('The same PIN code is added to two tahsils');
+  await assertPincodesFree(pins);
   const district = await District.create(body);
   const createdTahsils = tahsils.length ? await Tahsil.insertMany(tahsils.map((t) => ({ ...t, districtId: district._id }))) : [];
   await audit(req, { action: 'Created', entityType: 'District', entityId: district._id, newValue: { ...district.toJSON(), tahsils: createdTahsils.length } });
@@ -76,8 +79,26 @@ async function listTahsils(req, res) {
   return ok(res, tahsils.map((t) => ({ ...t.toJSON(), district: t.districtId?.name, sellerCount: sellers[String(t._id)] || 0, userCount: users[String(t._id)] || 0 })));
 }
 
+/** A PIN code can belong to one tahsil only, so a PIN always fills the right tahsil. */
+async function assertPincodesFree(pincodes, exceptTahsilId) {
+  if (!pincodes?.length) return;
+  const clash = await Tahsil.findOne({ pincodes: { $in: pincodes }, ...(exceptTahsilId ? { _id: { $ne: exceptTahsilId } } : {}) });
+  if (clash) {
+    const used = clash.pincodes.filter((p) => pincodes.includes(p));
+    throw ApiError.conflict(`PIN code ${used.join(', ')} is already added to tahsil ${clash.name}`);
+  }
+}
+
+/** GET /locations/pincode/:pincode - tahsil (and district) for a PIN code */
+async function lookupPincode(req, res) {
+  const tahsil = await Tahsil.findOne({ pincodes: req.params.pincode }).populate('districtId', 'name');
+  if (!tahsil) throw ApiError.notFound(`No tahsil has PIN code ${req.params.pincode}. Add it in Locations first.`);
+  return ok(res, { tahsilId: tahsil._id, tahsilName: tahsil.name, districtId: tahsil.districtId?._id, districtName: tahsil.districtId?.name, isActive: tahsil.isActive });
+}
+
 async function createTahsil(req, res) {
   if (!(await District.exists({ _id: req.body.districtId }))) throw ApiError.badRequest('District not found');
+  await assertPincodesFree(req.body.pincodes);
   if (await Tahsil.exists({ districtId: req.body.districtId, name: ciExact(req.body.name) })) throw ApiError.conflict('Tahsil already exists in this district');
   const tahsil = await Tahsil.create(req.body);
   await audit(req, { action: 'Created', entityType: 'Tahsil', entityId: tahsil._id, newValue: tahsil });
@@ -90,6 +111,7 @@ async function updateTahsil(req, res) {
   const districtId = req.body.districtId || tahsil.districtId;
   if (req.body.districtId && !(await District.exists({ _id: districtId }))) throw ApiError.badRequest('District not found');
   if (req.body.name && (await Tahsil.exists({ districtId, name: ciExact(req.body.name), _id: { $ne: tahsil._id } }))) throw ApiError.conflict('Tahsil already exists in this district');
+  await assertPincodesFree(req.body.pincodes, tahsil._id);
   const before = tahsil.toJSON();
   Object.assign(tahsil, req.body);
   await tahsil.save();
@@ -108,4 +130,4 @@ async function deleteTahsil(req, res) {
   return ok(res, null, 'Tahsil deleted');
 }
 
-module.exports = { listDistricts, createDistrict, updateDistrict, deleteDistrict, listTahsils, createTahsil, updateTahsil, deleteTahsil };
+module.exports = { listDistricts, createDistrict, updateDistrict, deleteDistrict, listTahsils, createTahsil, updateTahsil, deleteTahsil, lookupPincode, assertPincodesFree };

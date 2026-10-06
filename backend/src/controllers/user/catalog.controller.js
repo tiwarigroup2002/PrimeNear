@@ -6,7 +6,7 @@ const { Product, Category, SubCategory, Review, Seller, Wishlist, Cart, Order } 
 const { activeSeller, requireLinkedSeller, reachableShops, assertShopInReach } = require('../../services/shop-access.service');
 const { shopOptions } = require('../../services/cart.service');
 
-const PUBLIC_FIELDS = 'name isActive categoryId subCategoryId description images mrp sellingPrice gstRate gstAmount finalPrice stock rating ratingCount soldCount sellerId createdAt sku';
+const PUBLIC_FIELDS = 'name isActive categoryId subCategoryId description images videos mrp sellingPrice gstRate gstAmount finalPrice stock rating ratingCount soldCount sellerId createdAt sku';
 const oid = (id) => new mongoose.Types.ObjectId(String(id));
 const visible = (sellerId) => ({ sellerId: oid(sellerId), isActive: true, isDeleted: false });
 

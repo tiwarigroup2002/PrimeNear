@@ -9,6 +9,7 @@ const tahsilFields = {
   latitude: Joi.number().min(-90).max(90),
   longitude: Joi.number().min(-180).max(180),
   radius: Joi.number().min(0.5).max(100),
+  pincodes: Joi.array().items(Joi.string().pattern(/^\d{6}$/).messages({ 'string.pattern.base': 'PIN codes must be 6 digits' })).unique().max(200),
   isActive: Joi.boolean(),
 };
 const newTahsil = Joi.object({
@@ -37,6 +38,7 @@ router.post(
 router.put('/districts/:districtId', requirePermission('locations.manage'), validate(Joi.object({ name: Joi.string().trim().min(2).max(80), state: Joi.string().allow(''), isActive: Joi.boolean() }).min(1)), ctrl.updateDistrict);
 router.delete('/districts/:districtId', requirePermission('locations.manage'), ctrl.deleteDistrict);
 
+router.get('/pincode/:pincode', canRead, validate(Joi.object({ pincode: Joi.string().pattern(/^\d{6}$/).required() }), 'params'), ctrl.lookupPincode);
 router.get('/tahsils', canRead, ctrl.listTahsils);
 router.post('/tahsils', requirePermission('locations.manage'), validate(newTahsil.keys({ districtId: objectId().required() })), ctrl.createTahsil);
 router.put('/tahsils/:tahsilId', requirePermission('locations.manage'), validate(Joi.object({ ...tahsilFields, districtId: objectId() }).min(1)), ctrl.updateTahsil);

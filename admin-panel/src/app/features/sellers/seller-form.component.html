@@ -49,11 +49,30 @@
         <div class="card mb-3">
           <div class="card-header"><span class="card-title">Location</span></div>
           <div class="card-body row g-3">
-            <div class="col-md-6">
+            <div class="col-md-4">
+              <label class="form-label" for="pin">Shop PIN code</label>
+              <div class="input-group">
+                <input id="pin" class="form-control" formControlName="pincode" maxlength="6" inputmode="numeric" placeholder="452002" (input)="onPincode()" [class.is-invalid]="invalid('pincode')" />
+                @if (pinLooking()) { <span class="input-group-text"><span class="spinner-border spinner-border-sm"></span></span> }
+              </div>
+              @if (pinResult(); as r) {
+                <div class="form-text" [class.text-success]="r.ok" [class.text-warning]="!r.ok"><i class="bi me-1" [class.bi-check-circle]="r.ok" [class.bi-exclamation-triangle]="!r.ok"></i>{{ r.message }}</div>
+              } @else {
+                <div class="form-text">Fills the tahsil. Addresses with this PIN always get delivery.</div>
+              }
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">District</label>
+              <select class="form-select" [value]="districtFilter()" (change)="setDistrictFilter($any($event.target).value)">
+                <option value="">All districts</option>
+                @for (d of districts(); track d._id) { <option [value]="d._id">{{ d.name }}</option> }
+              </select>
+            </div>
+            <div class="col-md-4">
               <label class="form-label required">Tahsil</label>
               <select class="form-select" formControlName="tahsilId" (change)="onTahsilChange()" [class.is-invalid]="invalid('tahsilId')">
                 <option value="">Select tahsil</option>
-                @for (t of tahsils(); track t._id) { <option [value]="t._id">{{ t.name }} — {{ t.district }}</option> }
+                @for (t of tahsilOptions(); track t._id) { <option [value]="t._id">{{ t.name }} — {{ t.district }}</option> }
               </select>
               <div class="invalid-feedback">Select a tahsil</div>
             </div>

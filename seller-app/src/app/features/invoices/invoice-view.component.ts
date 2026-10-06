@@ -31,7 +31,7 @@ import { InrPipe, PageHeaderComponent, StateComponent } from '../../shared';
           <div class="text-center mb-3">
             <h2 class="h4 fw-bold mb-0">{{ shop()?.shopName }}</h2>
             <div class="small">{{ shop()?.shopAddress }}</div>
-            <div class="small">Mobile: {{ shop()?.mobileNumber }} @if (shop()?.gstNumber) { · GSTIN: {{ shop()?.gstNumber }} }</div>
+            <div class="small">Mobile: {{ shop()?.mobileNumber }} @if (shop()?.gstNumber && shop()?.settings?.showGstOnInvoice !== false) { · GSTIN: {{ shop()?.gstNumber }} }</div>
             <div class="fw-semibold mt-2">TAX INVOICE</div>
           </div>
           <div class="d-flex justify-content-between small border-top border-bottom py-2 mb-2 flex-wrap gap-2">

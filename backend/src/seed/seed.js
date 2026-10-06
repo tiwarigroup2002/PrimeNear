@@ -18,19 +18,19 @@ const LOCATIONS = [
   {
     name: 'Indore',
     tahsils: [
-      { name: 'Rajwada', latitude: 22.7196, longitude: 75.8577, radius: 5 },
-      { name: 'Mhow', latitude: 22.5514, longitude: 75.7297, radius: 5 },
-      { name: 'Dhar Road', latitude: 22.65, longitude: 75.85, radius: 5 },
+      { name: 'Rajwada', latitude: 22.7196, longitude: 75.8577, radius: 5, pincodes: ['452002', '452004', '452007'] },
+      { name: 'Mhow', latitude: 22.5514, longitude: 75.7297, radius: 5, pincodes: ['453441'] },
+      { name: 'Dhar Road', latitude: 22.65, longitude: 75.85, radius: 5, pincodes: ['452003'] },
     ],
   },
   {
     name: 'Dewas',
     tahsils: [
-      { name: 'Dewas City', latitude: 22.9689, longitude: 76.0534, radius: 5 },
-      { name: 'Sonkatch', latitude: 22.9747, longitude: 76.3497, radius: 5 },
+      { name: 'Dewas City', latitude: 22.9689, longitude: 76.0534, radius: 5, pincodes: ['455001'] },
+      { name: 'Sonkatch', latitude: 22.9747, longitude: 76.3497, radius: 5, pincodes: ['455118'] },
     ],
   },
-  { name: 'Ujjain', tahsils: [{ name: 'Ujjain City', latitude: 23.1815, longitude: 75.7734, radius: 6 }] },
+  { name: 'Ujjain', tahsils: [{ name: 'Ujjain City', latitude: 23.1815, longitude: 75.7734, radius: 6, pincodes: ['456001', '456010'] }] },
 ];
 
 const CATEGORIES = [
@@ -54,7 +54,8 @@ async function seedBase() {
   for (const d of LOCATIONS) {
     const district = await District.findOneAndUpdate({ name: d.name }, { $setOnInsert: { name: d.name } }, { upsert: true, returnDocument: 'after' });
     for (const t of d.tahsils) {
-      await Tahsil.findOneAndUpdate({ districtId: district._id, name: t.name }, { $setOnInsert: { ...t, districtId: district._id } }, { upsert: true });
+      const { pincodes = [], ...fields } = t;
+      await Tahsil.findOneAndUpdate({ districtId: district._id, name: t.name }, { $setOnInsert: { ...fields, districtId: district._id }, $addToSet: { pincodes: { $each: pincodes } } }, { upsert: true });
     }
   }
   for (const [i, c] of CATEGORIES.entries()) {
@@ -83,11 +84,11 @@ async function seedDemo(admin) {
   const dewasD = await District.findOne({ name: 'Dewas' });
 
   const sellers = await Seller.create([
-    { shopName: 'Bhagwati Shoes Shop', ownerName: 'Bhagwati Prasad', mobileNumber: '9876543210', tahsilId: rajwada._id, districtIds: [indore._id, dewasD._id], shopAddress: '12, Rajwada Chowk, Indore', gstNumber: '23AABCT0123A1Z0', bankDetails: { accountHolder: 'Bhagwati Prasad', accountNumber: '123456789012', ifscCode: 'SBIN0001234', bankName: 'State Bank of India' }, commissionRate: 5, createdBy: admin._id, rating: 4.6, ratingCount: 25 },
-    { shopName: 'RAM STORE', ownerName: 'Ram Verma', mobileNumber: '9876543211', tahsilId: mhow._id, districtIds: [indore._id], shopAddress: 'Main Road, Mhow', bankDetails: { accountHolder: 'Ram Verma', accountNumber: '998877665544', ifscCode: 'HDFC0004321', bankName: 'HDFC Bank' }, createdBy: admin._id, rating: 4.2, ratingCount: 12 },
-    { shopName: 'ALI GARMENTS', ownerName: 'Ali Khan', mobileNumber: '9876543212', tahsilId: dewas._id, districtIds: [dewasD._id], shopAddress: 'MG Road, Dewas', upiId: 'aligarments@upi', commissionRate: 4, createdBy: admin._id, rating: 4.8, ratingCount: 18 },
+    { shopName: 'Bhagwati Shoes Shop', ownerName: 'Bhagwati Prasad', mobileNumber: '9876543210', tahsilId: rajwada._id, districtIds: [indore._id, dewasD._id], shopAddress: '12, Rajwada Chowk, Indore', pincode: '452002', settings: { enableDelivery: true, deliveryCharge: 30, freeDeliveryAbove: 1000, allowCashOnDelivery: true }, gstNumber: '23AABCT0123A1Z0', bankDetails: { accountHolder: 'Bhagwati Prasad', accountNumber: '123456789012', ifscCode: 'SBIN0001234', bankName: 'State Bank of India' }, commissionRate: 5, createdBy: admin._id, rating: 4.6, ratingCount: 25 },
+    { shopName: 'RAM STORE', ownerName: 'Ram Verma', mobileNumber: '9876543211', tahsilId: mhow._id, districtIds: [indore._id], shopAddress: 'Main Road, Mhow', pincode: '453441', bankDetails: { accountHolder: 'Ram Verma', accountNumber: '998877665544', ifscCode: 'HDFC0004321', bankName: 'HDFC Bank' }, createdBy: admin._id, rating: 4.2, ratingCount: 12 },
+    { shopName: 'ALI GARMENTS', ownerName: 'Ali Khan', mobileNumber: '9876543212', tahsilId: dewas._id, districtIds: [dewasD._id], shopAddress: 'MG Road, Dewas', pincode: '455001', upiId: 'aligarments@upi', commissionRate: 4, createdBy: admin._id, rating: 4.8, ratingCount: 18 },
     // Same owner mobile as Bhagwati -> multi-shop owner
-    { shopName: 'Bhagwati Kirana', ownerName: 'Bhagwati Prasad', mobileNumber: '9876543210', tahsilId: rajwada._id, districtIds: [indore._id], shopAddress: '14, Rajwada Chowk, Indore', createdBy: admin._id },
+    { shopName: 'Bhagwati Kirana', ownerName: 'Bhagwati Prasad', mobileNumber: '9876543210', tahsilId: rajwada._id, districtIds: [indore._id], shopAddress: '14, Rajwada Chowk, Indore', pincode: '452002', createdBy: admin._id },
   ]);
 
   const cats = Object.fromEntries((await Category.find()).map((c) => [c.name, c]));
@@ -122,7 +123,7 @@ async function seedDemo(admin) {
     users.push(await User.create({
       mobileNumber: `98270${String(10000 + i).slice(-5)}`, name, email: `${name.split(' ')[0].toLowerCase()}@example.com`,
       tahsilId: tahsils[i % 3]._id, createdAt, lastLogin: new Date(),
-      addresses: [{ type: 'Home', name, fullAddress: `${i + 1}, Sample Nagar`, city: i % 3 === 2 ? 'Dewas' : 'Indore', state: 'Madhya Pradesh', zipCode: '452001', phoneNumber: `98270${String(10000 + i).slice(-5)}`, isDefault: true }],
+      addresses: [{ type: 'Home', name, fullAddress: `${i + 1}, Sample Nagar`, city: i % 3 === 2 ? 'Dewas' : 'Indore', state: 'Madhya Pradesh', zipCode: ['452002', '453441', '455001'][i % 3], phoneNumber: `98270${String(10000 + i).slice(-5)}`, isDefault: true }],
     }));
   }
   // Link users to sellers (some users linked to multiple shops)

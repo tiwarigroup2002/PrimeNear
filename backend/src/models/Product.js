@@ -10,6 +10,7 @@ const productSchema = new mongoose.Schema(
     subCategoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'SubCategory' },
     description: String,
     images: [String],
+    videos: [String],
     mrp: { type: Number, min: 0 },
     costPrice: { type: Number, min: 0 },
     sellingPrice: { type: Number, required: true, min: 0 },

@@ -11,6 +11,7 @@ const { Product, Category, SubCategory, Counter, Customer, Notification, StockMo
 const { getSettings } = require('../../services/settings.service');
 
 const MAX_IMAGES = 6;
+const MAX_VIDEOS = 2;
 
 async function findProduct(req) {
   const product = await Product.findOne({ _id: req.params.productId, sellerId: req.sellerId, isDeleted: false });
@@ -42,6 +43,35 @@ async function nextSku(seller, categoryId) {
 
 function removeFiles(urls) {
   urls.filter((u) => u?.startsWith('/uploads/products/')).forEach((u) => fs.rm(path.join(config.uploadDir, u.replace('/uploads/', '')), { force: true }, () => {}));
+}
+
+/** URLs of files uploaded in a multipart field ("images" or "videos"). */
+function uploaded(req, field) {
+  return (req.files?.[field] || []).map((f) => fileUrl('products', f.filename));
+}
+
+/** Keeps the listed existing files (JSON array; all when not sent), deletes the rest, appends new uploads. */
+function mergeMedia(current, keepJson, added, max) {
+  if (keepJson === undefined && !added.length) return current;
+  const keep = keepJson !== undefined ? JSON.parse(keepJson || '[]').filter((u) => current.includes(u)) : current;
+  removeFiles(current.filter((u) => !keep.includes(u)));
+  const next = [...keep, ...added];
+  removeFiles(next.slice(max));
+  return next.slice(0, max);
+}
+
+/** POST /categories/:categoryId/subcategories { name } - a seller adds a sub-category (shared with all shops) */
+async function addSubCategory(req, res) {
+  const cat = await Category.findOne({ _id: req.params.categoryId, isActive: true });
+  if (!cat) throw ApiError.notFound('Category not found');
+  const name = req.body.name.trim().replace(/\s+/g, ' ');
+  const existing = await SubCategory.findOne({ categoryId: cat._id, name: new RegExp(`^${escapeRegex(name)}$`, 'i') });
+  if (existing) {
+    if (!existing.isActive) throw ApiError.badRequest(`"${existing.name}" was turned off by the admin`);
+    return ok(res, existing, `"${existing.name}" already exists and is selected`);
+  }
+  const sub = await SubCategory.create({ categoryId: cat._id, name, createdBySellerId: req.sellerId });
+  return created(res, sub, 'Sub-category added');
 }
 
 /** Tells linked customers about a new product (spec: users are notified only for new products). */
@@ -103,8 +133,11 @@ async function create(req, res) {
   await validateCatalog(body);
   if (!body.sku) body.sku = await nextSku(req.seller, body.categoryId);
   else if (await Product.exists({ sellerId: req.sellerId, sku: body.sku, isDeleted: false })) throw ApiError.conflict('SKU already used by another product');
-  const images = (req.files || []).slice(0, MAX_IMAGES).map((f) => fileUrl('products', f.filename));
-  const product = new Product({ ...body, images, sellerId: req.sellerId, barcode: body.barcode || body.sku });
+  const images = uploaded(req, 'images').slice(0, MAX_IMAGES);
+  const videos = uploaded(req, 'videos').slice(0, MAX_VIDEOS);
+  delete body.keepImages;
+  delete body.keepVideos;
+  const product = new Product({ ...body, images, videos, sellerId: req.sellerId, barcode: body.barcode || body.sku });
   await product.save();
   if (body.stock > 0) {
     await StockMovement.create({ sellerId: req.sellerId, productId: product._id, change: product.stock, balanceAfter: product.stock, reason: 'Added', note: 'Opening stock', byType: 'Seller', by: req.sellerId });
@@ -124,14 +157,11 @@ async function update(req, res) {
   // Stock is changed only through inventory adjustments so every change is logged
   delete body.stock;
 
-  // Images: keep the ones listed in keepImages (JSON array), then append new uploads
-  if (body.keepImages !== undefined || req.files?.length) {
-    const keep = body.keepImages !== undefined ? JSON.parse(body.keepImages || '[]').filter((u) => product.images.includes(u)) : product.images;
-    removeFiles(product.images.filter((u) => !keep.includes(u)));
-    const added = (req.files || []).map((f) => fileUrl('products', f.filename));
-    product.images = [...keep, ...added].slice(0, MAX_IMAGES);
-  }
+  // Media: keep the ones listed in keepImages / keepVideos (JSON arrays), then append new uploads
+  product.images = mergeMedia(product.images, body.keepImages, uploaded(req, 'images'), MAX_IMAGES);
+  product.videos = mergeMedia(product.videos || [], body.keepVideos, uploaded(req, 'videos'), MAX_VIDEOS);
   delete body.keepImages;
+  delete body.keepVideos;
   Object.assign(product, body);
   await product.save();
   return ok(res, product, 'Product updated');
@@ -250,4 +280,4 @@ async function categories(_req, res) {
   return ok(res, cats.map((c) => ({ _id: c._id, name: c.name, icon: c.icon, subCategories: subs.filter((s) => String(s.categoryId) === String(c._id)).map((s) => ({ _id: s._id, name: s.name })) })));
 }
 
-module.exports = { list, quickSearch, getOne, create, update, remove, toggle, bulk, barcode, bulkUpload, csvTemplate, categories };
+module.exports = { list, quickSearch, getOne, create, update, remove, toggle, bulk, barcode, bulkUpload, csvTemplate, categories, addSubCategory };

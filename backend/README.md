@@ -136,3 +136,24 @@ Rules: the cart holds products of one shop only (adding from another shop emptie
 from the seller and cancelled automatically after 30 minutes (stock released); users can cancel until the order is packed
 (paid orders are refunded); returns can be requested for 7 days after delivery and are approved/rejected by the shop
 (approval refunds and restocks); ratings are recomputed from visible reviews.
+
+### Location, delivery area and delivery OTP
+
+- **Shop visibility**: a shop that added the customer is always shown, wherever the phone is. The phone location
+  (`location/update`) is only stored.
+- **Delivery area** (checked at checkout, `POST orders/check-delivery { addressId }` and again on `orders/create`):
+  the address PIN code equals the shop's PIN code → allowed. Otherwise the address tahsil is found from its PIN code
+  (tahsil `pincodes`, set by the admin in Locations) or its map point (tahsil radius); the shop must sell in that
+  tahsil (or in any tahsil of its districts when *sell across districts* is on). Store pickup is always allowed.
+- **Shop PIN code**: set in the admin seller form; typing it fills the tahsil (`GET /api/admin/locations/pincode/:pin`)
+  and it is added to that tahsil's PIN codes. A PIN code can belong to one tahsil only.
+- **Delivery OTP**: app orders are marked *Delivered* only with the customer's 4 digit code.
+  Seller: `POST /api/seller/orders/:id/delivery-otp` (SMS + app notification, 30 s resend) then
+  `PUT /api/seller/orders/:id/status { status: 'Delivered', otp }` (5 attempts). The customer sees the code on the
+  order page (`deliveryCode`); the seller API never returns it. Counter bills (POS) do not need it.
+- **Seller extras**: change a customer's phone number (`PUT customers/:id { mobileNumber }` moves the shop link to that
+  number), add sub-categories (`POST categories/:id/subcategories`, shared with all shops), product videos (field
+  `videos`, up to 2 × 60 MB, kept with `keepVideos`), `settings.showGstOnInvoice` to hide the GSTIN on bills.
+- **Media compression**: product photos are resized to max 1600 px with `sharp`; videos are re-encoded to 720p H.264
+  in the background with `ffmpeg-static` (the file is replaced only when smaller). If either package is missing the
+  original file is kept.

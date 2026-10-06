@@ -9,7 +9,7 @@ import { errorMessage } from '../../core/interceptors/auth.interceptor';
 import { District, Tahsil } from '../../core/models/api.models';
 import { MapPickerComponent, ModalComponent, PageHeaderComponent, StateComponent, StatusBadgeComponent } from '../../shared';
 
-interface TahsilForm { _id?: string; districtId?: string; name: string; latitude: number | null; longitude: number | null; radius: number; isActive: boolean }
+interface TahsilForm { _id?: string; districtId?: string; name: string; latitude: number | null; longitude: number | null; radius: number; pincodes: string; isActive: boolean }
 
 @Component({
   selector: 'app-locations',
@@ -40,7 +40,7 @@ export class LocationsComponent implements OnInit {
   }
 
   blankTahsil(): TahsilForm {
-    return { name: '', latitude: null, longitude: null, radius: 5, isActive: true };
+    return { name: '', latitude: null, longitude: null, radius: 5, pincodes: '', isActive: true };
   }
 
   loadDistricts() {
@@ -111,7 +111,7 @@ export class LocationsComponent implements OnInit {
   // ---- Tahsils ----
   openTahsil(t?: Tahsil) {
     this.tahsilForm = t
-      ? { _id: t._id, name: t.name, latitude: t.latitude, longitude: t.longitude, radius: t.radius, isActive: t.isActive }
+      ? { _id: t._id, name: t.name, latitude: t.latitude, longitude: t.longitude, radius: t.radius, pincodes: (t.pincodes || []).join(', '), isActive: t.isActive }
       : { ...this.blankTahsil(), districtId: this.selected()!._id };
     this.tahsilOpen.set(true);
   }
@@ -120,8 +120,10 @@ export class LocationsComponent implements OnInit {
     const t = this.tahsilForm;
     if (t.name.trim().length < 2) return this.toast.warning('Tahsil name is required');
     if (t.latitude === null || t.longitude === null) return this.toast.warning('Pick a location on the map or enter coordinates');
+    const pincodes = [...new Set(t.pincodes.split(/[\s,]+/).map((p) => p.trim()).filter(Boolean))];
+    if (pincodes.some((p) => !/^\d{6}$/.test(p))) return this.toast.warning('PIN codes must be 6 digits, separated by commas');
     this.saving.set(true);
-    const body = { name: t.name, latitude: Number(t.latitude), longitude: Number(t.longitude), radius: Number(t.radius), isActive: t.isActive };
+    const body = { name: t.name, latitude: Number(t.latitude), longitude: Number(t.longitude), radius: Number(t.radius), pincodes, isActive: t.isActive };
     const req = t._id ? this.api.put(`/locations/tahsils/${t._id}`, body) : this.api.post('/locations/tahsils', { ...body, districtId: this.selected()!._id });
     req.subscribe({
       next: () => { this.saving.set(false); this.tahsilOpen.set(false); this.toast.success('Tahsil saved'); this.refreshLookups(); this.loadTahsils(); this.loadDistricts(); },

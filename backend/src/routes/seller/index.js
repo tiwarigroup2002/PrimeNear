@@ -4,7 +4,8 @@ const config = require('../../config');
 const validate = require('../../middleware/validate');
 const { authenticateOwner, authenticateSeller } = require('../../middleware/sellerAuth');
 const { maintenanceGuard } = require('../../middleware/maintenance');
-const { imageUpload, csvUpload } = require('../../middleware/upload');
+const { imageUpload, productMediaUpload, csvUpload } = require('../../middleware/upload');
+const { compressUploads } = require('../../services/media.service');
 const { Joi, objectId, mobile } = require('../../validators/common');
 const { CUSTOMER_TYPES, DISPUTE_CATEGORY, REPORT_FORMATS } = require('../../models/constants');
 
@@ -52,6 +53,7 @@ router.put(
     deliveryCharge: Joi.number().min(0),
     freeDeliveryAbove: Joi.number().min(0),
     allowCashOnDelivery: Joi.boolean(),
+    showGstOnInvoice: Joi.boolean(),
     notifications: Joi.object({ push: Joi.boolean(), whatsapp: Joi.boolean(), sms: Joi.boolean() }),
   }).min(1)),
   profile.updateSettings
@@ -94,18 +96,20 @@ const productFields = {
   sku: Joi.string().trim().allow('').max(40).pattern(/^[\w-]*$/).messages({ 'string.pattern.base': 'SKU can contain letters, numbers, - and _' }),
   isActive: Joi.boolean(),
   keepImages: Joi.string(),
+  keepVideos: Joi.string(),
 };
 // multipart sends '' for empty numbers; turn those into "not set"
 const clean = (req, _res, next) => {
   ['mrp', 'costPrice', 'subCategoryId'].forEach((k) => { if (req.body[k] === '' || req.body[k] === 'null') req.body[k] = undefined; });
   next();
 };
-const productImages = imageUpload('products').array('images', 6);
+const productImages = [productMediaUpload(), compressUploads];
 router.get('/categories', products.categories);
 router.get('/categories/:categoryId/subcategories', async (req, res) => {
   const { SubCategory } = require('../../models');
   res.json({ success: true, data: await SubCategory.find({ categoryId: req.params.categoryId, isActive: true }).sort({ name: 1 }) });
 });
+router.post('/categories/:categoryId/subcategories', validate(Joi.object({ name: Joi.string().trim().min(2).max(60).required() })), products.addSubCategory);
 router.get('/products', products.list);
 router.get('/products/search', products.quickSearch);
 router.get('/products/bulk-upload/template', products.csvTemplate);
@@ -148,14 +152,15 @@ router.get('/customers/search', customers.quickSearch);
 router.post('/customers', validate(Joi.object({ ...customerFields, mobileNumber: mobile().required(), customerType: customerFields.customerType.default('Retail') })), customers.create);
 router.post('/customers/bulk-link', csvUpload.single('csvFile'), customers.bulkLink);
 router.get('/customers/:customerId', customers.getOne);
-router.put('/customers/:customerId', validate(Joi.object(customerFields).min(1)), customers.update);
+router.put('/customers/:customerId', validate(Joi.object({ ...customerFields, mobileNumber: mobile() }).min(1)), customers.update);
 router.delete('/customers/:customerId', customers.remove);
 
 // Orders
 router.get('/orders', orders.list);
 router.post('/orders', validate(billSchema()), orders.createInvoice); // manual order / cash bill
 router.get('/orders/:orderId', orders.getOne);
-router.put('/orders/:orderId/status', validate(Joi.object({ status: Joi.string().valid('Confirmed', 'Packed', 'Shipped', 'Delivered').required(), note: Joi.string().allow('').max(300) })), orders.updateStatus);
+router.put('/orders/:orderId/status', validate(Joi.object({ status: Joi.string().valid('Confirmed', 'Packed', 'Shipped', 'Delivered').required(), note: Joi.string().allow('').max(300), otp: Joi.string().trim().pattern(/^\d{4,6}$/).messages({ 'string.pattern.base': 'Enter the 4 digit OTP' }) })), orders.updateStatus);
+router.post('/orders/:orderId/delivery-otp', orders.sendDeliveryOtp);
 router.post('/orders/:orderId/cancel', validate(Joi.object({ reason: Joi.string().trim().min(3).max(300).required() })), orders.cancel);
 router.put('/orders/:orderId/add-note', validate(Joi.object({ note: Joi.string().trim().min(1).max(1000).required() })), orders.addNote);
 router.get('/orders/:orderId/invoice', orders.orderInvoice);

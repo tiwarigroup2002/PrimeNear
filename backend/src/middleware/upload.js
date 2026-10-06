@@ -27,6 +27,40 @@ function imageUpload(folder, { maxSizeMb = 5 } = {}) {
   });
 }
 
+const VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime', 'video/3gpp', 'video/x-matroska'];
+
+/** Product photos (field "images") and videos (field "videos") stored under uploads/products. */
+function productMediaUpload({ maxImages = 6, maxVideos = 2, imageMb = 10, videoMb = 60 } = {}) {
+  const dir = path.join(config.uploadDir, 'products');
+  fs.mkdirSync(dir, { recursive: true });
+  const upload = multer({
+    storage: multer.diskStorage({
+      destination: dir,
+      filename: (_req, file, cb) => {
+        const fallback = file.fieldname === 'videos' ? '.mp4' : '.jpg';
+        const ext = path.extname(file.originalname).toLowerCase() || fallback;
+        cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
+      },
+    }),
+    limits: { fileSize: videoMb * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      if (file.fieldname === 'images' && IMAGE_TYPES.includes(file.mimetype)) return cb(null, true);
+      if (file.fieldname === 'videos' && VIDEO_TYPES.includes(file.mimetype)) return cb(null, true);
+      return cb(ApiError.badRequest(file.fieldname === 'videos' ? 'Only video files (mp4, webm, mov, 3gp) are allowed' : 'Only image files (jpg, png, webp, gif, svg) are allowed'));
+    },
+  }).fields([{ name: 'images', maxCount: maxImages }, { name: 'videos', maxCount: maxVideos }]);
+  return (req, res, next) =>
+    upload(req, res, (err) => {
+      if (err) return next(err);
+      const big = (req.files?.images || []).find((f) => f.size > imageMb * 1024 * 1024);
+      if (big) {
+        Object.values(req.files).flat().forEach((f) => fs.unlink(f.path, () => {}));
+        return next(ApiError.badRequest(`Each photo must be under ${imageMb} MB`));
+      }
+      return next();
+    });
+}
+
 /** In-memory upload for CSV files (bulk operations). */
 const csvUpload = multer({
   storage: multer.memoryStorage(),
@@ -42,4 +76,4 @@ function fileUrl(folder, filename) {
   return `/uploads/${folder}/${filename}`;
 }
 
-module.exports = { imageUpload, csvUpload, fileUrl };
+module.exports = { imageUpload, productMediaUpload, csvUpload, fileUrl };

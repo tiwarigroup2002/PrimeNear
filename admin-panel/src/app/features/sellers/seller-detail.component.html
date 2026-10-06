@@ -56,7 +56,7 @@
                 <dt>Owner</dt><dd>{{ d.seller.ownerName }}</dd>
                 <dt>Mobile</dt><dd>{{ d.seller.mobileNumber }}</dd>
                 <dt>Email</dt><dd>{{ d.seller.email || '—' }}</dd>
-                <dt>Address</dt><dd>{{ d.seller.shopAddress }}</dd>
+                <dt>Address</dt><dd>{{ d.seller.shopAddress }}@if (d.seller.pincode) { - {{ d.seller.pincode }} }</dd>
                 <dt>Tahsil</dt><dd>{{ d.seller.tahsilId?.name }}</dd>
                 <dt>Sells in</dt><dd>@for (x of d.seller.districtIds; track x._id) { <span class="badge text-bg-light border me-1">{{ x.name }}</span> }</dd>
                 <dt>GSTIN</dt><dd>{{ d.seller.gstNumber || '—' }}</dd>

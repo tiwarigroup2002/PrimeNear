@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, inject, signal } from '@angular/core';
+import { Component, Input, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -47,6 +47,7 @@ export class SellerFormComponent implements OnInit {
     districtIds: [[] as string[]],
     sellsAcrossDistricts: [false],
     shopAddress: ['', [Validators.required, Validators.minLength(5)]],
+    pincode: ['', Validators.pattern(/^\d{6}$/)],
     gstNumber: ['', Validators.pattern(GST_PATTERN)],
     upiId: ['', Validators.pattern(/^[\w.-]+@[\w.-]+$/)],
     bankDetails: this.fb.group({
@@ -113,6 +114,43 @@ export class SellerFormComponent implements OnInit {
     const districtId = (t?.districtId as any)?._id ?? t?.districtId;
     const current = this.form.value.districtIds || [];
     if (districtId && !current.includes(districtId)) this.form.patchValue({ districtIds: [...current, districtId] });
+    if (districtId) this.districtFilter.set(districtId);
+  }
+
+  // ---- PIN code -> tahsil ----
+  districtFilter = signal('');
+  pinLooking = signal(false);
+  pinResult = signal<{ ok: boolean; message: string } | null>(null);
+  tahsilOptions = computed(() => {
+    const d = this.districtFilter();
+    return d ? this.tahsils().filter((t) => ((t.districtId as any)?._id ?? t.districtId) === d) : this.tahsils();
+  });
+
+  setDistrictFilter(id: string) {
+    this.districtFilter.set(id);
+    const t = this.tahsils().find((x) => x._id === this.form.value.tahsilId);
+    if (id && t && ((t.districtId as any)?._id ?? t.districtId) !== id) this.form.patchValue({ tahsilId: '' });
+  }
+
+  onPincode() {
+    const pin = String(this.form.value.pincode || '').replace(/\D/g, '');
+    this.form.patchValue({ pincode: pin }, { emitEvent: false });
+    this.pinResult.set(null);
+    if (pin.length !== 6) return;
+    this.pinLooking.set(true);
+    this.api.get<{ tahsilId: string; tahsilName: string; districtId: string; districtName: string; isActive: boolean }>(`/locations/pincode/${pin}`).subscribe({
+      next: (r) => {
+        this.pinLooking.set(false);
+        if (!r.isActive) return this.pinResult.set({ ok: false, message: `${r.tahsilName} (${r.districtName}) is turned off in Locations` });
+        this.form.patchValue({ tahsilId: r.tahsilId });
+        this.onTahsilChange();
+        this.pinResult.set({ ok: true, message: `${r.tahsilName}, ${r.districtName}` });
+      },
+      error: (e) => {
+        this.pinLooking.set(false);
+        this.pinResult.set({ ok: false, message: e.status === 404 ? 'No tahsil has this PIN yet. Pick the tahsil below; the PIN will be added to it.' : errorMessage(e) });
+      },
+    });
   }
 
   toggleDistrict(id: string, checked: boolean) {
@@ -154,6 +192,7 @@ export class SellerFormComponent implements OnInit {
       districtIds: v.districtIds,
       sellsAcrossDistricts: !!v.sellsAcrossDistricts,
       shopAddress: v.shopAddress,
+      pincode: v.pincode || '',
       gstNumber: v.gstNumber || '',
       upiId: v.upiId || '',
       bankDetails: v.bankDetails,

@@ -3,7 +3,7 @@ const { generateId } = require('../src/utils/ids');
 
 async function makeLocation() {
   const district = await District.create({ name: `Indore ${Date.now()}${Math.random()}` });
-  const tahsil = await Tahsil.create({ districtId: district._id, name: 'Rajwada', latitude: 22.7, longitude: 75.8 });
+  const tahsil = await Tahsil.create({ districtId: district._id, name: 'Rajwada', latitude: 22.7, longitude: 75.8, pincodes: ['452001'] });
   return { district, tahsil };
 }
 

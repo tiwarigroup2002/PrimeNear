@@ -24,6 +24,24 @@
               </label>
             }
           </div>
+          <div class="form-text mt-n2 mb-3">Photos are compressed automatically before upload.</div>
+
+          <label class="form-label">Videos (up to 2, max 60 MB each)</label>
+          <div class="d-flex flex-wrap gap-3 mb-1">
+            @for (v of existingVideos; track v; let i = $index) {
+              <div class="video-tile"><video [src]="v" muted playsinline preload="metadata"></video><button class="btn btn-danger btn-sm" (click)="existingVideos.splice(i, 1)" aria-label="Remove video">×</button></div>
+            }
+            @for (n of newVideos; track n.url; let i = $index) {
+              <div class="video-tile"><video [src]="n.url" muted playsinline preload="metadata"></video><button class="btn btn-danger btn-sm" (click)="newVideos.splice(i, 1)" aria-label="Remove video">×</button></div>
+            }
+            @if (existingVideos.length + newVideos.length < 2) {
+              <label class="video-tile d-flex flex-column align-items-center justify-content-center border rounded text-muted small" style="border-style: dashed !important; cursor: pointer">
+                <i class="bi bi-camera-video fs-4"></i>Add video
+                <input type="file" accept="video/mp4,video/webm,video/quicktime,video/3gpp" hidden (change)="addVideos($event)" />
+              </label>
+            }
+          </div>
+          <div class="form-text mb-3">Videos are compressed on the server after upload (720p).</div>
 
           <div class="mb-3">
             <label class="form-label required">Product name</label>
@@ -38,7 +56,7 @@
               </select>
             </div>
             <div class="col-6">
-              <label class="form-label">Sub-category</label>
+              <label class="form-label d-flex justify-content-between">Sub-category <a href="" class="small" (click)="$event.preventDefault(); addSubCategory()"><i class="bi bi-plus-lg"></i> New</a></label>
               <select class="form-select" [(ngModel)]="f.subCategoryId" [disabled]="!subs().length">
                 <option value="">—</option>
                 @for (s of subs(); track s._id) { <option [value]="s._id">{{ s.name }}</option> }
