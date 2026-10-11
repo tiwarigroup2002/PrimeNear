@@ -1,7 +1,8 @@
 const ApiError = require('../utils/ApiError');
 const { Customer, Seller, Tahsil } = require('../models');
+const { servicePincodes } = require('./locations.service');
 
-const SHOP_FIELDS = 'shopName ownerName shopImage shopAddress pincode rating ratingCount tahsilId districtIds sellsAcrossDistricts settings mobileNumber';
+const SHOP_FIELDS = 'shopName ownerName shopImage shopAddress pincode rating ratingCount tahsilId serviceTahsilIds districtIds settings mobileNumber';
 
 /** Active shops the user is linked to (Customer links). */
 async function linkedSellers(userId) {
@@ -11,20 +12,6 @@ async function linkedSellers(userId) {
     .populate('tahsilId', 'name districtId')
     .sort({ shopName: 1 });
   return sellers;
-}
-
-function idOf(value) {
-  if (!value) return '';
-  return String(value._id || value);
-}
-
-/** A shop sells in its own tahsil. A bigger shop assigned districts sells in every tahsil of those districts. */
-function shopServesTahsil(seller, tahsil) {
-  if (!tahsil) return false;
-  if (idOf(seller.tahsilId) === String(tahsil._id)) return true;
-  if (!seller.sellsAcrossDistricts) return false;
-  const assigned = (seller.districtIds || []).map((d) => idOf(d));
-  return assigned.includes(idOf(tahsil.districtId));
 }
 
 async function tahsilLabel(tahsilId) {
@@ -71,54 +58,18 @@ async function assertShopInReach(user, sellerId) {
   return reachableShops(user);
 }
 
-function haversineKm(lat1, lon1, lat2, lon2) {
-  const toRad = (d) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-/** Tahsil of an address: by PIN code first, then by map location (within the tahsil radius). */
-async function tahsilForAddress(address) {
-  const zip = String(address?.zipCode || '').trim();
-  if (/^\d{6}$/.test(zip)) {
-    const byPin = await Tahsil.findOne({ pincodes: zip, isActive: true }).populate('districtId', 'name');
-    if (byPin) return byPin;
-  }
-  if (address?.latitude != null && address?.longitude != null) {
-    const tahsils = await Tahsil.find({ isActive: true }).populate('districtId', 'name');
-    let best = null;
-    tahsils.forEach((t) => {
-      const d = haversineKm(address.latitude, address.longitude, t.latitude, t.longitude);
-      if (d <= (t.radius || 5) && (!best || d < best.d)) best = { t, d };
-    });
-    if (best) return best.t;
-  }
-  return null;
-}
-
 /**
- * Can this shop deliver to this address?
- * Same PIN code as the shop -> yes. Otherwise the address must be in the shop's tahsil
- * (or any tahsil of its districts when it sells across districts).
+ * Can this shop deliver to this address? Only the PIN code decides:
+ * it must be the shop's own PIN code or a PIN code of a taluka in the shop's selling area.
  */
 async function checkDeliveryArea(seller, address) {
   if (!address) return { deliverable: false, message: 'Please select a delivery address' };
   const zip = String(address.zipCode || '').trim();
-  if (seller.pincode && zip === seller.pincode) return { deliverable: true, message: 'Same PIN code as the shop' };
-  const tahsil = await tahsilForAddress(address);
-  if (!tahsil) {
-    return {
-      deliverable: false,
-      message: zip
-        ? `We could not find PIN code ${zip} in ${seller.shopName}'s delivery area. Choose store pickup or another address.`
-        : 'Add the PIN code to this address so we can check delivery, or choose store pickup.',
-    };
-  }
-  const area = `${tahsil.name}${tahsil.districtId?.name ? `, ${tahsil.districtId.name}` : ''}`;
-  if (shopServesTahsil(seller, tahsil)) return { deliverable: true, area, message: `Delivers to ${area}` };
-  return { deliverable: false, area, message: `${seller.shopName} does not deliver to ${area}. Choose store pickup or another address.` };
+  if (!/^\d{6}$/.test(zip)) return { deliverable: false, message: 'Add a 6 digit PIN code to this address, or choose store pickup.' };
+  const area = [address.taluka, address.district].filter(Boolean).join(', ');
+  const pins = await servicePincodes(seller);
+  if (pins.has(zip)) return { deliverable: true, area, message: zip === seller.pincode ? `Same PIN code as the shop (${zip})` : `Delivers to PIN ${zip}${area ? ` (${area})` : ''}` };
+  return { deliverable: false, area, message: `${seller.shopName} does not deliver to PIN ${zip}${area ? ` (${area})` : ''}. Choose store pickup or another address.` };
 }
 
-module.exports = { linkedSellers, requireLinkedSeller, activeSeller, reachableShops, assertShopInReach, shopServesTahsil, checkDeliveryArea, tahsilForAddress };
+module.exports = { linkedSellers, requireLinkedSeller, activeSeller, reachableShops, assertShopInReach, checkDeliveryArea };

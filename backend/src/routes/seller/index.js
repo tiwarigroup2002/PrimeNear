@@ -97,6 +97,8 @@ const productFields = {
   isActive: Joi.boolean(),
   keepImages: Joi.string(),
   keepVideos: Joi.string(),
+  // JSON array of colour / size combinations (see products.controller applyVariants)
+  variants: Joi.string().max(200000),
 };
 // multipart sends '' for empty numbers; turn those into "not set"
 const clean = (req, _res, next) => {
@@ -119,12 +121,13 @@ router.post(
   '/products',
   productImages,
   clean,
-  validate(Joi.object({ ...productFields, name: productFields.name.required(), categoryId: productFields.categoryId.required(), sellingPrice: productFields.sellingPrice.required(), gstRate: productFields.gstRate.default(0), stock: productFields.stock.default(0), isActive: productFields.isActive.default(true) })),
+  validate(Joi.object({ ...productFields, name: productFields.name.required(), categoryId: productFields.categoryId.required(), sellingPrice: Joi.when('variants', { is: Joi.exist(), then: productFields.sellingPrice, otherwise: productFields.sellingPrice.required() }), gstRate: productFields.gstRate.default(0), stock: productFields.stock.default(0), isActive: productFields.isActive.default(true) })),
   products.create
 );
 router.get('/products/:productId', products.getOne);
 router.put('/products/:productId', productImages, clean, validate(Joi.object(productFields)), products.update);
 router.delete('/products/:productId', products.remove);
+router.post('/products/:productId/variants/:variantId/images', imageUpload('products', { maxSizeMb: 10 }).array('images', 6), compressUploads, products.addVariantImages);
 router.post('/products/:productId/toggle-active', validate(Joi.object({ isActive: Joi.boolean().required() })), products.toggle);
 router.get('/products/:productId/barcode', products.barcode);
 router.post('/products/generate-barcode/:productId', products.barcode);
@@ -137,6 +140,7 @@ router.post(
   '/inventory/adjust-stock',
   validate(Joi.object({
     productId: objectId().required(),
+    variantId: objectId(),
     quantity: Joi.number().integer().required(),
     mode: Joi.string().valid('add', 'set').default('add'),
     reason: Joi.string().valid('Added', 'Damage', 'Return', 'Recount', 'Adjustment').default('Adjustment'),
@@ -171,7 +175,7 @@ function billSchema() {
     customerId: objectId().allow('', null),
     walkInName: Joi.string().allow('').max(80),
     walkInMobile: mobile().allow(''),
-    items: Joi.array().items(Joi.object({ productId: objectId().required(), quantity: Joi.number().integer().min(1).max(100000).required() })).min(1).max(200).required(),
+    items: Joi.array().items(Joi.object({ productId: objectId().required(), variantId: objectId().allow(null), quantity: Joi.number().integer().min(1).max(100000).required() })).min(1).max(200).required(),
     paymentMethod: Joi.string().valid('Cash', 'Online').required(),
     discount: Joi.number().min(0).default(0),
     deliveryCharge: Joi.number().min(0).default(0),

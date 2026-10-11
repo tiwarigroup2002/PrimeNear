@@ -36,7 +36,7 @@ import { InrPipe, PageHeaderComponent, StateComponent } from '../../shared';
           </div>
           <div class="d-flex justify-content-between small border-top border-bottom py-2 mb-2 flex-wrap gap-2">
             <div><div><strong>Invoice:</strong> {{ i.invoiceId }}</div><div><strong>Date:</strong> {{ i.invoiceDate | date: 'd MMM y, h:mm a' }}</div><div><strong>Payment:</strong> {{ i.paymentMethod }}</div></div>
-            <div class="text-end"><div><strong>Customer:</strong> {{ i.customerSnapshot?.name || 'Walk-in customer' }}</div>@if (i.customerSnapshot?.mobileNumber) { <div>{{ i.customerSnapshot.mobileNumber }}</div> }</div>
+            <div class="text-end"><div><strong>Customer:</strong> {{ i.customerSnapshot?.name || 'Walk-in customer' }}</div>@if (i.customerSnapshot?.mobileNumber) { <div>{{ i.customerSnapshot.mobileNumber }}</div> }@if (i.billingAddress?.fullAddress) { <div style="max-width: 260px" class="ms-auto"><strong>Bill to:</strong> {{ i.billingAddress.fullAddress }}, {{ i.billingAddress.taluka || i.billingAddress.city }}, {{ i.billingAddress.district }}, {{ i.billingAddress.state }} - {{ i.billingAddress.zipCode }}</div> }</div>
           </div>
           <div class="table-responsive"><table class="table table-sm small mb-2 invoice-table" style="--bs-table-bg: transparent; color: inherit">
             <thead><tr><th>Item</th><th class="text-center">Qty</th><th class="text-end">Rate</th><th class="text-end">GST</th><th class="text-end">Amount</th></tr></thead>

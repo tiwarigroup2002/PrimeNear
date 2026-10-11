@@ -21,11 +21,16 @@ import { InrPipe } from '../pipes/inr.pipe';
       <a [routerLink]="['/product', p._id]" class="pc-body">
         <div class="pc-name">{{ p.name }}</div>
         @if (p.ratingCount) { <div class="pc-rating"><span class="badge bg-success"><i class="bi bi-star-fill"></i> {{ p.rating.toFixed(1) }}</span> <span class="text-muted">({{ p.ratingCount }})</span></div> }
-        <div class="pc-price"><strong>{{ p.finalPrice | inr: 0 }}</strong>@if (p.mrp && p.mrp > p.finalPrice) { <s>{{ p.mrp | inr: 0 }}</s> }</div>
+        <div class="pc-price">@if (p.hasVariants) { <small class="text-muted">from</small> }<strong>{{ p.finalPrice | inr: 0 }}</strong>@if (p.mrp && p.mrp > p.finalPrice) { <s>{{ p.mrp | inr: 0 }}</s> }</div>
+        @if (p.hasVariants) { <div class="small text-muted text-truncate">@if (p.colors?.length) { {{ p.colors!.length }} colour{{ p.colors!.length > 1 ? "s" : "" }} }@if (p.colors?.length && p.sizes?.length) { · }@if (p.sizes?.length) { {{ p.sizes!.join(", ") }} }</div> }
       </a>
       <div class="pc-foot">
         @if (p.inStock) {
-          <button class="btn btn-sm btn-outline-primary w-100" (click)="add()" [disabled]="busy()">@if (busy()) { <span class="spinner-border spinner-border-sm"></span> } @else { <i class="bi bi-cart-plus me-1"></i>Add }</button>
+          @if (p.hasVariants) {
+            <a class="btn btn-sm btn-outline-primary w-100" [routerLink]="['/product', p._id]"><i class="bi bi-palette me-1"></i>Choose options</a>
+          } @else {
+            <button class="btn btn-sm btn-outline-primary w-100" (click)="add()" [disabled]="busy()">@if (busy()) { <span class="spinner-border spinner-border-sm"></span> } @else { <i class="bi bi-cart-plus me-1"></i>Add }</button>
+          }
         } @else {
           <button class="btn btn-sm btn-light w-100" disabled>Notify later</button>
         }

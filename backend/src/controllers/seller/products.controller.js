@@ -117,7 +117,7 @@ async function quickSearch(req, res) {
   const q = String(req.query.q || '').trim();
   const filter = { sellerId: req.sellerId, isDeleted: false, isActive: true };
   if (q) filter.$or = [{ sku: new RegExp(`^${escapeRegex(q)}$`, 'i') }, { barcode: q }, { name: searchRegex(q) }];
-  const items = await Product.find(filter).sort({ soldCount: -1 }).limit(15).select('name sku barcode sellingPrice gstRate gstAmount finalPrice stock images');
+  const items = await Product.find(filter).sort({ soldCount: -1 }).limit(15).select('name sku barcode sellingPrice gstRate gstAmount finalPrice stock images variants');
   return ok(res, items);
 }
 
@@ -128,6 +128,59 @@ async function getOne(req, res) {
   return ok(res, { product, movements });
 }
 
+const MAX_VARIANTS = 100;
+const MAX_VARIANT_IMAGES = 6;
+const comboKey = (v) => `${String(v.color || '').trim().toLowerCase()}|${String(v.size || '').trim().toLowerCase()}`;
+
+/**
+ * Reads the `variants` JSON sent by the product form and merges it into the product.
+ * [{ _id?, color, size, sellingPrice, mrp, sku, isActive, stock (new variants only), images (kept photos) }]
+ * Existing variants keep their stock (changed only through stock adjustments); new ones start
+ * with the given opening stock. Photos of removed variants are deleted.
+ */
+function applyVariants(product, json) {
+  let rows;
+  try {
+    rows = JSON.parse(json || '[]');
+  } catch {
+    throw ApiError.badRequest('Variants are not valid');
+  }
+  if (!Array.isArray(rows)) throw ApiError.badRequest('Variants are not valid');
+  if (rows.length > MAX_VARIANTS) throw ApiError.badRequest(`Maximum ${MAX_VARIANTS} colour / size combinations`);
+  const seen = new Set();
+  const next = rows.map((r, i) => {
+    const color = String(r.color || '').trim().slice(0, 40);
+    const size = String(r.size || '').trim().slice(0, 40);
+    if (!color && !size) throw ApiError.badRequest(`Variant ${i + 1}: enter a colour or a size`);
+    const key = comboKey({ color, size });
+    if (seen.has(key)) throw ApiError.badRequest(`"${[color, size].filter(Boolean).join(' / ')}" is added twice`);
+    seen.add(key);
+    const sellingPrice = Number(r.sellingPrice);
+    if (!(sellingPrice >= 0) || r.sellingPrice === '' || r.sellingPrice === null) throw ApiError.badRequest(`Enter a price for ${[color, size].filter(Boolean).join(' / ')}`);
+    const mrp = r.mrp === '' || r.mrp === null || r.mrp === undefined ? undefined : Number(r.mrp);
+    if (mrp !== undefined && mrp < sellingPrice) throw ApiError.badRequest(`MRP of ${[color, size].filter(Boolean).join(' / ')} cannot be less than its price`);
+    const existing = r._id ? product.variants?.id(r._id) : null;
+    const keep = existing ? (Array.isArray(r.images) ? r.images.filter((u) => existing.images.includes(u)) : existing.images) : [];
+    if (existing) removeFiles(existing.images.filter((u) => !keep.includes(u)));
+    return {
+      ...(existing ? { _id: existing._id } : {}),
+      color,
+      size,
+      sku: String(r.sku || '').trim().slice(0, 40) || undefined,
+      sellingPrice,
+      mrp,
+      isActive: r.isActive !== false,
+      stock: existing ? existing.stock : Math.max(0, Math.floor(Number(r.stock) || 0)),
+      images: keep,
+    };
+  });
+  const keptIds = new Set(next.filter((v) => v._id).map((v) => String(v._id)));
+  (product.variants || []).filter((v) => !keptIds.has(String(v._id))).forEach((v) => removeFiles(v.images));
+  // A product that gets variants keeps no separate stock of its own
+  product.variants = next;
+  product.markModified('variants');
+}
+
 async function create(req, res) {
   const body = { ...req.body };
   await validateCatalog(body);
@@ -135,11 +188,18 @@ async function create(req, res) {
   else if (await Product.exists({ sellerId: req.sellerId, sku: body.sku, isDeleted: false })) throw ApiError.conflict('SKU already used by another product');
   const images = uploaded(req, 'images').slice(0, MAX_IMAGES);
   const videos = uploaded(req, 'videos').slice(0, MAX_VIDEOS);
+  const variantsJson = body.variants;
   delete body.keepImages;
   delete body.keepVideos;
+  delete body.variants;
   const product = new Product({ ...body, images, videos, sellerId: req.sellerId, barcode: body.barcode || body.sku });
+  if (variantsJson) applyVariants(product, variantsJson);
+  if (product.variants.length && body.sellingPrice === undefined) product.sellingPrice = 0; // set from variants on save
   await product.save();
-  if (body.stock > 0) {
+  if (product.variants.length) {
+    const opening = product.variants.filter((v) => v.stock > 0).map((v) => ({ sellerId: req.sellerId, productId: product._id, variantId: v._id, variantLabel: Product.variantLabel(v), change: v.stock, balanceAfter: v.stock, reason: 'Added', note: 'Opening stock', byType: 'Seller', by: req.sellerId }));
+    if (opening.length) await StockMovement.insertMany(opening);
+  } else if (body.stock > 0) {
     await StockMovement.create({ sellerId: req.sellerId, productId: product._id, change: product.stock, balanceAfter: product.stock, reason: 'Added', note: 'Opening stock', byType: 'Seller', by: req.sellerId });
   }
   if (product.isActive) await announceNewProduct(req.seller, product);
@@ -162,9 +222,39 @@ async function update(req, res) {
   product.videos = mergeMedia(product.videos || [], body.keepVideos, uploaded(req, 'videos'), MAX_VIDEOS);
   delete body.keepImages;
   delete body.keepVideos;
+  const variantsJson = body.variants;
+  delete body.variants;
   Object.assign(product, body);
-  await product.save();
+  if (variantsJson !== undefined) {
+    const before = new Set((product.variants || []).map((v) => String(v._id)));
+    applyVariants(product, variantsJson);
+    await product.save();
+    // Opening stock of newly added variants is logged like any stock change
+    const added = product.variants.filter((v) => !before.has(String(v._id)) && v.stock > 0);
+    if (added.length) {
+      await StockMovement.insertMany(added.map((v) => ({ sellerId: req.sellerId, productId: product._id, variantId: v._id, variantLabel: Product.variantLabel(v), change: v.stock, balanceAfter: v.stock, reason: 'Added', note: 'Opening stock', byType: 'Seller', by: req.sellerId })));
+    }
+  } else {
+    await product.save();
+  }
   return ok(res, product, 'Product updated');
+}
+
+/** POST /products/:id/variants/:variantId/images - photos for one colour / size combination */
+async function addVariantImages(req, res) {
+  const product = await findProduct(req);
+  const variant = product.variants.id(req.params.variantId);
+  if (!variant) {
+    removeFiles((req.files || []).map((f) => fileUrl('products', f.filename)));
+    throw ApiError.notFound('Variant not found');
+  }
+  const added = (req.files || []).map((f) => fileUrl('products', f.filename));
+  if (!added.length) throw ApiError.badRequest('Choose at least one photo');
+  const all = [...variant.images, ...added];
+  removeFiles(all.slice(MAX_VARIANT_IMAGES));
+  variant.images = all.slice(0, MAX_VARIANT_IMAGES);
+  await product.save();
+  return ok(res, { images: variant.images }, 'Photos added');
 }
 
 async function remove(req, res) {
@@ -280,4 +370,4 @@ async function categories(_req, res) {
   return ok(res, cats.map((c) => ({ _id: c._id, name: c.name, icon: c.icon, subCategories: subs.filter((s) => String(s.categoryId) === String(c._id)).map((s) => ({ _id: s._id, name: s.name })) })));
 }
 
-module.exports = { list, quickSearch, getOne, create, update, remove, toggle, bulk, barcode, bulkUpload, csvTemplate, categories, addSubCategory };
+module.exports = { list, quickSearch, getOne, create, update, remove, toggle, bulk, barcode, bulkUpload, csvTemplate, categories, addSubCategory, addVariantImages };

@@ -37,7 +37,6 @@ export class ShellComponent implements OnInit {
   ngOnInit() {
     this.auth.refreshMe().subscribe({ error: () => {} });
     this.cart.load().subscribe({ error: () => {} });
-    this.syncLocation();
     this.loadUnread();
     const t = setInterval(() => this.loadUnread(), 60000);
     this.destroyRef.onDestroy(() => clearInterval(t));
@@ -49,18 +48,6 @@ export class ShellComponent implements OnInit {
 
   loadUnread() {
     this.api.get<any>('/notifications', { limit: 1 }).subscribe({ next: (r) => this.unread.set(r.unreadCount), error: () => {} });
-  }
-
-  /** Saves the phone location (used for reports). Shops are shown whatever the location is. */
-  syncLocation() {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        this.api.post<any>('/location/update', { latitude: pos.coords.latitude, longitude: pos.coords.longitude }).subscribe({ error: () => {} });
-      },
-      () => {},
-      { timeout: 8000 }
-    );
   }
 
   openOrders() {

@@ -46,7 +46,7 @@ export interface Ref {
 }
 
 export interface District { _id: string; name: string; state?: string; isActive: boolean; tahsilCount?: number; sellerCount?: number; userCount?: number; }
-export interface Tahsil { _id: string; name: string; districtId: Ref | string; district?: string; latitude: number; longitude: number; radius: number; pincodes?: string[]; isActive: boolean; sellerCount?: number; userCount?: number; }
+export interface Tahsil { _id: string; name: string; districtId: Ref | string; district?: string; pincodes?: string[]; isActive: boolean; sellerCount?: number; userCount?: number; }
 export interface Category { _id: string; name: string; icon?: string; description?: string; isActive: boolean; sortOrder?: number; subCategoryCount?: number; productCount?: number; }
 export interface SubCategory { _id: string; name: string; categoryId: Ref | string; icon?: string; isActive: boolean; productCount?: number; }
 
@@ -60,7 +60,10 @@ export interface Seller {
   email?: string;
   tahsilId: Ref | any;
   districtIds: (Ref | any)[];
-  sellsAcrossDistricts?: boolean;
+  pincode?: string;
+  serviceTahsilIds?: string[];
+  customerLimit?: number | null;
+  serviceArea?: { state: string; district: string; talukas: string[]; allTalukas: boolean; totalTalukas?: number; pincodeCount: number }[];
   shopAddress: string;
   shopImage?: string;
   gstNumber?: string;

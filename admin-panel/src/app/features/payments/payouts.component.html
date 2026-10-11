@@ -1,7 +1,8 @@
-<app-page-header title="Seller payouts" icon="bi-bank" back="/payments" backLabel="Payments" subtitle="Pay sellers their share after commission. Transfers are made from your bank; record the UTR here." />
+<app-page-header title="Seller payouts" icon="bi-bank" back="/payments" backLabel="Payments" subtitle="Online payments are collected by the platform and paid to the seller after delivery + the holding period. Transfers are made from your bank; record the UTR here." />
 
 <ul class="nav nav-tabs mb-3">
   <li class="nav-item"><a class="nav-link" [class.active]="tab() === 'due'" (click)="tab.set('due')">Due for payout @if (due()?.sellers?.length) { <span class="badge text-bg-warning ms-1">{{ due().sellers.length }}</span> }</a></li>
+  <li class="nav-item"><a class="nav-link" [class.active]="tab() === 'hold'" (click)="tab.set('hold')">On hold @if (hold()?.sellers?.length) { <span class="badge text-bg-secondary ms-1">{{ hold().totalAmount | inr: 0 }}</span> }</a></li>
   <li class="nav-item"><a class="nav-link" [class.active]="tab() === 'history'" (click)="tab.set('history')">Payout history</a></li>
 </ul>
 
@@ -56,6 +57,49 @@
         </div>
       }
     </ng-container>
+  </div>
+} @else if (tab() === 'hold') {
+  <div class="card">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span class="small text-muted">Paid online orders not payable yet: not delivered, or delivered less than <strong>{{ hold()?.payoutDelayDays }}</strong> days ago. They move to “Due for payout” automatically.</span>
+      <span class="fw-semibold">On hold: {{ hold()?.totalAmount | inr }}</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead><tr><th>Seller</th><th class="text-center">Delivered</th><th class="text-center">Not delivered</th><th>Next payable on</th><th class="text-end">Amount</th><th></th></tr></thead>
+        <tbody>
+          @for (s of hold()?.sellers; track s.sellerId) {
+            <tr class="row-link" (click)="openSeller.set(openSeller() === s.sellerId ? null : s.sellerId)">
+              <td><a [routerLink]="['/sellers', s.sellerId]" (click)="$event.stopPropagation()" class="cell-title text-decoration-none">{{ s.seller?.shopName }}</a><div class="cell-sub">{{ s.seller?.ownerName }} · {{ s.seller?.mobileNumber }}</div></td>
+              <td class="text-center">{{ s.deliveredCount }}</td>
+              <td class="text-center">{{ s.notDeliveredCount }}</td>
+              <td>@if (s.nextPayableOn) { {{ s.nextPayableOn | date: 'd MMM y' }} } @else { <span class="text-muted">after delivery</span> }</td>
+              <td class="text-end fw-bold">{{ s.amount | inr }}</td>
+              <td class="text-end"><i class="bi" [class.bi-chevron-down]="openSeller() !== s.sellerId" [class.bi-chevron-up]="openSeller() === s.sellerId"></i></td>
+            </tr>
+            @if (openSeller() === s.sellerId) {
+              <tr><td colspan="6" class="bg-body-tertiary">
+                <table class="table table-sm mb-0">
+                  <thead><tr><th>Order</th><th>Status</th><th>Delivered</th><th>Payable on</th><th class="text-end">Amount</th></tr></thead>
+                  <tbody>
+                    @for (o of s.orders; track o._id) {
+                      <tr>
+                        <td><a [routerLink]="['/orders', o._id]">{{ o.orderId }}</a></td>
+                        <td><app-status-badge [status]="o.orderStatus" /></td>
+                        <td>{{ o.deliveredAt ? (o.deliveredAt | date: 'd MMM, h:mm a') : '—' }}</td>
+                        <td>@if (o.payableOn) { {{ o.payableOn | date: 'd MMM y' }} } @else { <span class="text-muted">after delivery + {{ hold()?.payoutDelayDays }} days</span> }</td>
+                        <td class="text-end">{{ o.amount | inr }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </td></tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-state [loading]="holdLoading()" [empty]="!holdLoading() && !hold()?.sellers?.length" emptyText="No online payments on hold" icon="bi-hourglass" />
   </div>
 } @else {
   <div class="card">

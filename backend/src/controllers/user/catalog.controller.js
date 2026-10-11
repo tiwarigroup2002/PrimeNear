@@ -3,10 +3,11 @@ const ApiError = require('../../utils/ApiError');
 const { ok } = require('../../utils/respond');
 const { getPagination, paginated, searchRegex } = require('../../utils/pagination');
 const { Product, Category, SubCategory, Review, Seller, Wishlist, Cart, Order } = require('../../models');
-const { activeSeller, requireLinkedSeller, reachableShops, assertShopInReach } = require('../../services/shop-access.service');
+const { activeSeller, requireLinkedSeller, linkedSellers } = require('../../services/shop-access.service');
+const { describeServiceArea } = require('../../services/locations.service');
 const { shopOptions } = require('../../services/cart.service');
 
-const PUBLIC_FIELDS = 'name isActive categoryId subCategoryId description images videos mrp sellingPrice gstRate gstAmount finalPrice stock rating ratingCount soldCount sellerId createdAt sku';
+const PUBLIC_FIELDS = 'name isActive categoryId subCategoryId description images videos mrp sellingPrice gstRate gstAmount finalPrice stock rating ratingCount soldCount sellerId createdAt sku variants';
 const oid = (id) => new mongoose.Types.ObjectId(String(id));
 const visible = (sellerId) => ({ sellerId: oid(sellerId), isActive: true, isDeleted: false });
 
@@ -19,32 +20,35 @@ async function wishIds(userId) {
   return new Set((w?.items || []).map((i) => String(i.productId)));
 }
 
+const uniq = (arr) => [...new Set(arr.filter(Boolean))];
+
+/**
+ * Shopper view of a product. Products with colour / size variants get `hasVariants`,
+ * the list of colours / sizes, only their active variants, and the first variant photo
+ * when the product itself has none.
+ */
 function decorate(products, wished) {
   return products.map((p) => {
     const o = p.toJSON ? p.toJSON() : p;
-    return { ...o, inStock: o.stock > 0, inWishlist: wished.has(String(o._id)), discountPercent: o.mrp && o.mrp > o.finalPrice ? Math.round(((o.mrp - o.finalPrice) / o.mrp) * 100) : 0 };
+    const variants = (o.variants || []).filter((v) => v.isActive).map(({ sku, ...v }) => ({ ...v, label: [v.color, v.size].filter(Boolean).join(' / ') }));
+    const images = o.images?.length ? o.images : uniq(variants.flatMap((v) => v.images || [])).slice(0, 6);
+    return {
+      ...o,
+      images,
+      variants,
+      hasVariants: variants.length > 0,
+      colors: uniq(variants.map((v) => v.color)),
+      sizes: uniq(variants.map((v) => v.size)),
+      inStock: o.stock > 0,
+      inWishlist: wished.has(String(o._id)),
+      discountPercent: o.mrp && o.mrp > o.finalPrice ? Math.round(((o.mrp - o.finalPrice) / o.mrp) * 100) : 0,
+    };
   });
 }
 
 /** GET /home */
 async function home(req, res) {
-  const reach = await reachableShops(req.user);
-  if (!reach.all.length) throw ApiError.forbidden('You are not registered with any shop yet. Ask your shopkeeper to add your number.');
-  if (reach.locationRequired || !reach.sellers.length) {
-    return ok(res, {
-      locationRequired: reach.locationRequired,
-      outOfArea: !reach.locationRequired,
-      tahsilName: reach.tahsilName,
-      seller: null,
-      sellers: [],
-      categories: [],
-      featured: [],
-      newArrivals: [],
-      recentOrders: [],
-      cartCount: 0,
-    });
-  }
-  const { seller, sellers, tahsilName } = await activeSeller(req.user);
+  const { seller, sellers } = await activeSeller(req.user);
   const base = visible(seller._id);
   const [featured, newest, catIds, wished, cart, recentOrders, options] = await Promise.all([
     Product.find({ ...base, stock: { $gt: 0 } }).sort({ soldCount: -1, rating: -1 }).limit(10).select(PUBLIC_FIELDS),
@@ -64,21 +68,18 @@ async function home(req, res) {
     newArrivals: decorate(newest, wished),
     recentOrders,
     cartCount: cart && String(cart.sellerId) === String(seller._id) ? cart.items.reduce((s, i) => s + i.quantity, 0) : 0,
-    location: { tahsilId: req.user.tahsilId, tahsilName: tahsilName || null },
   });
 }
 
-/** GET /sellers - shops the user can order from in their current tahsil */
+/** GET /sellers - shops that added this customer (shown wherever the customer is) */
 async function sellers(req, res) {
-  const reach = await reachableShops(req.user);
-  const list = reach.locationRequired ? reach.all : reach.sellers;
-  return ok(res, { sellers: list.map(shopCard), activeSellerId: req.user.currentActiveSellerId, locationRequired: reach.locationRequired, tahsilName: reach.tahsilName });
+  const list = await linkedSellers(req.userId);
+  return ok(res, { sellers: list.map(shopCard), activeSellerId: req.user.currentActiveSellerId });
 }
 
 /** POST /sellers/switch { sellerId } - clears the cart if it holds another shop's products */
 async function switchSeller(req, res) {
   const { seller } = await requireLinkedSeller(req.userId, req.body.sellerId);
-  await assertShopInReach(req.user, seller._id);
   req.user.currentActiveSellerId = seller._id;
   await req.user.save();
   const cart = await Cart.findOne({ userId: req.userId });
@@ -96,12 +97,15 @@ async function switchSeller(req, res) {
 async function sellerProfile(req, res) {
   await requireLinkedSeller(req.userId, req.params.sellerId);
   const seller = await Seller.findById(req.params.sellerId).populate('tahsilId', 'name');
-  const [options, productCount, orders] = await Promise.all([
+  const [options, productCount, orders, serviceArea] = await Promise.all([
     shopOptions(seller),
     Product.countDocuments(visible(seller._id)),
     Order.countDocuments({ sellerId: seller._id, orderStatus: 'Delivered' }),
+    describeServiceArea(seller),
   ]);
-  return ok(res, { ...shopCard(seller), productCount, totalOrders: orders, delivery: options.delivery, deliveryCharge: options.deliveryCharge, freeDeliveryAbove: options.freeDeliveryAbove, cod: options.cod, gstNumber: seller.gstNumber });
+  // Where the shop delivers; delivery addresses need a PIN code of these talukas
+  const deliveryArea = serviceArea.map((r) => ({ district: r.district, state: r.state, talukas: r.allTalukas ? 'All talukas' : r.talukas.join(', ') }));
+  return ok(res, { ...shopCard(seller), pincode: seller.pincode, deliveryArea, productCount, totalOrders: orders, delivery: options.delivery, deliveryCharge: options.deliveryCharge, freeDeliveryAbove: options.freeDeliveryAbove, cod: options.cod, gstNumber: seller.gstNumber });
 }
 
 /** GET /sellers/:sellerId/reviews */
@@ -171,10 +175,13 @@ async function product(req, res) {
     Cart.findOne({ userId: req.userId }),
     Product.exists({ _id: prod._id, isActive: true }),
   ]);
-  const inCart = cart && String(cart.sellerId) === String(prod.sellerId) ? cart.items.find((i) => String(i.productId) === String(prod._id))?.quantity || 0 : 0;
+  const lines = cart && String(cart.sellerId) === String(prod.sellerId) ? cart.items.filter((i) => String(i.productId) === String(prod._id)) : [];
+  const inCart = lines.filter((i) => !i.variantId).reduce((s, i) => s + i.quantity, 0);
+  // Quantity in the cart per colour / size variant
+  const inCartByVariant = Object.fromEntries(lines.filter((i) => i.variantId).map((i) => [String(i.variantId), i.quantity]));
   const [data] = decorate([prod], wished);
   return ok(res, {
-    product: { ...data, available: Boolean(isActiveNow), inCart },
+    product: { ...data, available: Boolean(isActiveNow), inCart, inCartByVariant },
     seller: shopCard(seller),
     isActiveShop: String(req.user.currentActiveSellerId) === String(prod.sellerId),
     reviews,

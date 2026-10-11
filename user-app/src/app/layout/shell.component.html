@@ -1,6 +1,6 @@
 <header class="app-header">
   <div class="container-xl d-flex align-items-center gap-2">
-    <a routerLink="/home" class="brand" aria-label="Home" title="Home"><span class="brand-mark"><i class="bi bi-house-door-fill"></i></span><span class="d-none d-md-inline">PrimeNear</span></a>
+    <a routerLink="/home" class="brand" aria-label="Home" title="Home"><img src="logo.png" alt="" class="brand-logo" /><span class="d-none d-md-inline">PrimeNear</span></a>
     <button class="shop-chip" (click)="shopsOpen.set(true)" aria-label="Change shop">
       @if (auth.activeShop()?.shopImage) { <img [src]="auth.activeShop()!.shopImage" alt="" /> } @else { <span class="shop-chip-icon"><i class="bi bi-shop"></i></span> }
       <span class="text-start min-w-0">
@@ -13,6 +13,7 @@
     </form>
     <div class="flex-grow-1 d-md-none"></div>
     <button class="icon-btn border-0 bg-transparent" (click)="openOrders()" aria-label="Recent orders" title="Recent orders"><i class="bi bi-bag-check"></i></button>
+    <a class="icon-btn d-none d-lg-inline-flex" routerLink="/home" aria-label="Home" title="Home"><i class="bi bi-house-door"></i></a>
     <a class="icon-btn position-relative" routerLink="/notifications" aria-label="Notifications"><i class="bi bi-bell"></i>@if (unread()) { <span class="dot-count">{{ unread() > 9 ? '9+' : unread() }}</span> }</a>
     <a class="icon-btn position-relative d-none d-lg-inline-flex" routerLink="/wishlist" aria-label="Wishlist"><i class="bi bi-heart"></i></a>
     <a class="icon-btn position-relative d-none d-lg-inline-flex" routerLink="/cart" aria-label="Cart"><i class="bi bi-cart3"></i>@if (cart.count()) { <span class="dot-count">{{ cart.count() }}</span> }</a>

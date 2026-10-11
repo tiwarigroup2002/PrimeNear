@@ -3,6 +3,13 @@ const request = require('supertest');
 
 process.env.NODE_ENV = 'test';
 process.env.MONGODB_URI = process.env.TEST_MONGODB_URI || 'mongodb://127.0.0.1:27017/primenear_test';
+// Offline India location directory; the live India Post API is never called in tests
+process.env.INDIA_LOCATIONS_FILE = require('path').join(__dirname, 'fixtures', 'india-pincodes.csv');
+process.env.PINCODE_API_URL = 'http://127.0.0.1:9/pincode/';
+// Never call real Razorpay or a fixed OTP from tests, whatever is in .env (dotenv does not override these)
+process.env.RAZORPAY_KEY_ID = '';
+process.env.RAZORPAY_KEY_SECRET = '';
+process.env.DEV_FIXED_OTP = '';
 
 const app = require('../src/app');
 const { Admin, PlatformSettings } = require('../src/models');

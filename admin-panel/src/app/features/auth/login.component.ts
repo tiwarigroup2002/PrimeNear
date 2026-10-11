@@ -14,7 +14,7 @@ import { errorMessage } from '../../core/interceptors/auth.interceptor';
       <div class="card auth-card shadow-sm">
         <div class="card-body p-4 p-md-5">
           <div class="text-center mb-4">
-            <span class="brand-mark text-white fs-4 mb-2" style="width:52px;height:52px"><i class="bi bi-geo-alt-fill"></i></span>
+            <img src="logo.png" alt="PrimeNear" class="mb-2 rounded-4 shadow-sm" width="64" height="64" />
             <h1 class="h4 fw-bold mb-1">{{ platform.config().platformName }} Admin</h1>
             <p class="text-muted small mb-0">Sign in to manage the platform</p>
           </div>

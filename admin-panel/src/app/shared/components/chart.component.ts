@@ -4,7 +4,7 @@ import { ThemeService } from '../../core/services/theme.service';
 
 Chart.register(...registerables);
 
-export const CHART_COLORS = ['#2563eb', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#ea580c', '#475569'];
+export const CHART_COLORS = ['#d70f64', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#ea580c', '#475569'];
 
 /** Small Chart.js wrapper: <app-chart type="line" [labels]="..." [datasets]="..."/> */
 @Component({

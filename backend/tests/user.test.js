@@ -47,17 +47,18 @@ describe('User login', () => {
     await U(token).get('/auth/me').expect(200);
   });
 
-  test('location update finds the tahsil', async () => {
-    const res = await U(token).post('/location/update').send({ latitude: 22.701, longitude: 75.801 }).expect(200);
-    expect(res.body.data.inServiceArea).toBe(true);
-    const far = await U(token).post('/location/update').send({ latitude: 28.6, longitude: 77.2 }).expect(200);
-    expect(far.body.data.inServiceArea).toBe(false);
+  test('PIN code lookup gives state, district and taluka', async () => {
+    const res = await U(token).get('/pincode/453441').expect(200);
+    expect(res.body.data.state).toBe('Madhya Pradesh');
+    expect(res.body.data.district).toBe('Indore');
+    expect(res.body.data.taluka).toBe('Mhow');
+    await U(token).get('/pincode/45344').expect(400);
+    await U(token).post('/location/update').send({ latitude: 22.7, longitude: 75.8 }).expect(404); // location tracking removed
   });
 });
 
 describe('Browsing', () => {
   test('home & products only show the active shop', async () => {
-    await U(token).post('/location/update').send({ latitude: 22.701, longitude: 75.801 }).expect(200);
     await U(token).post('/sellers/switch').send({ sellerId: String(shopA._id) }).expect(200);
     const home = await U(token).get('/home').expect(200);
     expect(home.body.data.seller.shopName).toBe('User Shop A');
@@ -72,13 +73,11 @@ describe('Browsing', () => {
     expect(cats.body.data[0].productCount).toBe(2);
   });
 
-  test('a shop that added the customer is shown wherever the phone is', async () => {
-    await U(token).post('/location/update').send({ latitude: 28.6, longitude: 77.2 }).expect(200); // outside every tahsil
+  test('a shop that added the customer is always shown (no location needed)', async () => {
     const home = await U(token).get('/home').expect(200);
     expect(home.body.data.seller.shopName).toBe('User Shop A');
     const shops = await U(token).get('/sellers').expect(200);
     expect(shops.body.data.sellers).toHaveLength(2);
-    await U(token).post('/location/update').send({ latitude: 22.701, longitude: 75.801 }).expect(200);
   });
 
   test('cannot see products of a shop the user is not linked to', async () => {
@@ -103,6 +102,7 @@ describe('Browsing', () => {
 
 describe('Cart & checkout', () => {
   let addressId;
+  let farBillingId;
   test('cart rules: stock limit, other shop clears cart, delivery charge', async () => {
     await U(token).post('/cart/add-item').send({ productId: String(pB1._id), quantity: 2 }).expect(200);
     const add = await U(token).post('/cart/add-item').send({ productId: String(pA1._id), quantity: 1 }).expect(200);
@@ -120,36 +120,51 @@ describe('Cart & checkout', () => {
 
   test('address book', async () => {
     await U(token).post('/addresses').send({ fullAddress: 'x' }).expect(400);
-    const a = await U(token).post('/addresses').send({ fullAddress: '12 MG Road', city: 'Indore', zipCode: '452001' }).expect(201);
+    await U(token).post('/addresses').send({ fullAddress: 'No PIN road' }).expect(400); // PIN code is required
+    const a = await U(token).post('/addresses').send({ fullAddress: '12 MG Road', zipCode: '452001', state: 'Typed wrong' }).expect(201);
     addressId = a.body.data._id;
     expect(a.body.data.isDefault).toBe(true);
-    const b = await U(token).post('/addresses').send({ fullAddress: 'Office, AB Road', type: 'Work' }).expect(201);
+    // state / district / taluka come from the PIN code
+    expect([a.body.data.state, a.body.data.district, a.body.data.taluka]).toEqual(['Madhya Pradesh', 'Indore', 'Indore']);
+    expect(String((await User.findById(user._id)).tahsilId)).toBe(String(loc.tahsil._id));
+    const b = await U(token).post('/addresses').send({ fullAddress: 'Office, AB Road', type: 'Work', zipCode: '453441' }).expect(201);
+    expect(b.body.data.taluka).toBe('Mhow');
     await U(token).post(`/addresses/${b.body.data._id}/set-default`).expect(200);
     await U(token).delete(`/addresses/${b.body.data._id}`).expect(200);
     const list = await U(token).get('/addresses').expect(200);
     expect(list.body.data[0].isDefault).toBe(true);
   });
 
-  test('delivery address must be inside the shop area (PIN code / tahsil)', async () => {
-    const far = await U(token).post('/addresses').send({ fullAddress: 'Connaught Place', city: 'Delhi', zipCode: '110001' }).expect(201);
+  test('delivery address must have a PIN code of the shop selling area', async () => {
+    const far = await U(token).post('/addresses').send({ fullAddress: 'Connaught Place', zipCode: '110001' }).expect(201);
+    expect(far.body.data.state).toBe('Delhi');
     const farCheck = await U(token).post('/orders/check-delivery').send({ addressId: far.body.data._id }).expect(200);
     expect(farCheck.body.data.deliverable).toBe(false);
-    const noPin = await U(token).post('/addresses').send({ fullAddress: 'Somewhere without pin' }).expect(201);
-    expect((await U(token).post('/orders/check-delivery').send({ addressId: noPin.body.data._id }).expect(200)).body.data.deliverable).toBe(false);
+    // PIN of another taluka of the same district (Mhow) is outside this shop's area
+    const mhow = await U(token).post('/addresses').send({ fullAddress: 'Mhow cantt', zipCode: '453441' }).expect(201);
+    expect((await U(token).post('/orders/check-delivery').send({ addressId: mhow.body.data._id }).expect(200)).body.data.deliverable).toBe(false);
     const res = await U(token).post('/orders/create').send({ deliveryAddressId: far.body.data._id, paymentMethod: 'Cash' }).expect(400);
-    expect(res.body.message).toMatch(/delivery area/);
-    // Same PIN code as the shop always works, even if no tahsil lists it
+    expect(res.body.message).toMatch(/does not deliver to PIN 110001/);
+    // Unknown PIN codes cannot be saved
+    await U(token).post('/addresses').send({ fullAddress: 'Nowhere road', zipCode: '999999' }).expect(503);
+    // Same PIN code as the shop always works, even outside the selling area
     await Seller.updateOne({ _id: shopA._id }, { pincode: '452099' });
     const samePin = await U(token).post('/addresses').send({ fullAddress: 'Near the shop', zipCode: '452099' }).expect(201);
     expect((await U(token).post('/orders/check-delivery').send({ addressId: samePin.body.data._id }).expect(200)).body.data.deliverable).toBe(true);
     expect((await U(token).post('/orders/check-delivery').send({ addressId }).expect(200)).body.data.deliverable).toBe(true);
-    for (const a of [far, noPin, samePin]) await U(token).delete(`/addresses/${a.body.data._id}`).expect(200);
+    // Billing address must exist (it can be anywhere; it only needs a PIN code)
+    await U(token).post('/orders/create').send({ deliveryAddressId: addressId, billingAddressId: '64b000000000000000000000', paymentMethod: 'Cash' }).expect(400);
+    for (const a of [mhow, samePin]) await U(token).delete(`/addresses/${a.body.data._id}`).expect(200);
+    farBillingId = far.body.data._id;
     await U(token).post(`/addresses/${addressId}/set-default`).expect(200);
   });
 
   test('online order (test payment) reserves stock, hidden from seller until paid', async () => {
-    const res = await U(token).post('/orders/create').send({ deliveryAddressId: addressId, paymentMethod: 'Online' }).expect(201);
+    const res = await U(token).post('/orders/create').send({ deliveryAddressId: addressId, billingAddressId: farBillingId, paymentMethod: 'Online' }).expect(201);
     expect(res.body.data.payment.gateway).toBe('mock');
+    expect(res.body.data.order.deliveryAddress.zipCode).toBe('452001');
+    expect(res.body.data.order.billingAddress.zipCode).toBe('110001');
+    expect(res.body.data.order.billingAddress.state).toBe('Delhi');
     const orderId = res.body.data.orderId;
     expect((await Product.findById(pA1._id)).stock).toBe(4);
     expect((await Cart.findOne({ userId: user._id })).items).toHaveLength(0);

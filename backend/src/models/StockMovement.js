@@ -4,6 +4,9 @@ const stockMovementSchema = new mongoose.Schema(
   {
     sellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Seller', required: true },
     productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+    // Set for products with colour / size variants
+    variantId: mongoose.Schema.Types.ObjectId,
+    variantLabel: String,
     change: { type: Number, required: true }, // +ve added, -ve removed
     balanceAfter: Number,
     reason: {

@@ -5,6 +5,7 @@ const { ok, created } = require('../../utils/respond');
 const { getPagination, paginated, searchRegex, escapeRegex } = require('../../utils/pagination');
 const { User, Customer, Seller, Order } = require('../../models');
 const { audit } = require('../../services/audit.service');
+const { assertCanAddCustomers, customerUsage } = require('../../services/customer-limit.service');
 const { REVENUE_MATCH, NET_AMOUNT, round2 } = require('../../services/metrics');
 
 const MOBILE_RX = /^[6-9]\d{9}$/;
@@ -35,6 +36,7 @@ async function orderStatsFor(userIds) {
 async function linkUserToSeller(user, seller, { name, customerType, linkedBy = 'Admin', adminId } = {}) {
   const existing = await Customer.findOne({ sellerId: seller._id, userId: user._id });
   if (existing) return { link: existing, created: false };
+  await assertCanAddCustomers(seller);
   const link = await Customer.create({
     sellerId: seller._id,
     userId: user._id,
@@ -109,6 +111,8 @@ async function create(req, res) {
   const seller = await Seller.findOne({ _id: sellerId, status: 'Active' });
   if (!seller) throw ApiError.badRequest('Seller not found or not active');
   let user = await User.findOne({ mobileNumber });
+  // Check the shop's customer limit before creating anything
+  if (!user || !(await Customer.exists({ sellerId: seller._id, userId: user._id }))) await assertCanAddCustomers(seller);
   let isNew = false;
   if (user && user.status === 'Deleted') {
     user.status = 'Active';
@@ -178,6 +182,7 @@ async function bulkLink(req, res) {
   if (rows.length > 5000) throw ApiError.badRequest('Maximum 5000 rows per upload');
 
   const sellerCache = {};
+  const slotsLeft = {}; // customers each shop can still add (null = no limit)
   const results = [];
   let linkedCount = 0;
   let alreadyLinked = 0;
@@ -215,8 +220,17 @@ async function bulkLink(req, res) {
       results.push({ ...out, status: 'error', message: 'User is blocked' });
       continue;
     }
+    const exists = user && (await Customer.exists({ userId: user._id, sellerId: seller._id }));
+    // Respect the shop's customer limit (counted once per shop, then per added row)
+    if (!exists) {
+      if (!(key in slotsLeft)) slotsLeft[key] = (await customerUsage(seller)).remaining;
+      if (slotsLeft[key] !== null && slotsLeft[key] <= 0) {
+        results.push({ ...out, status: 'error', message: `Customer limit reached for ${seller.shopName} (${seller.customerLimit})` });
+        continue;
+      }
+      if (slotsLeft[key] !== null) slotsLeft[key] -= 1;
+    }
     if (dryRun) {
-      const exists = user && (await Customer.exists({ userId: user._id, sellerId: seller._id }));
       results.push({ ...out, status: exists ? 'skipped' : 'ok', message: exists ? 'Already linked' : user ? 'Will link existing user' : 'Will create user and link' });
       continue;
     }

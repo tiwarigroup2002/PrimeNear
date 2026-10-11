@@ -1,4 +1,4 @@
-import { Component, Input, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, Input, OnInit, ViewChild, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -8,18 +8,22 @@ import { LookupService } from '../../core/services/lookup.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AuthService } from '../../core/services/auth.service';
 import { errorMessage } from '../../core/interceptors/auth.interceptor';
-import { District, Seller, Tahsil } from '../../core/models/api.models';
+import { Seller } from '../../core/models/api.models';
 import { GST_PATTERN, IFSC_PATTERN, MOBILE_PATTERN } from '../../shared/validators/password';
-import { PageHeaderComponent, StateComponent } from '../../shared';
+import { AreaPickerComponent, AreaSelection, PageHeaderComponent, StateComponent } from '../../shared';
+
+/** One row of the selling area: a district with all or some of its talukas. */
+interface AreaRow { state: string; district: string; talukas: 'all' | string[]; count: number; pins: number }
 
 @Component({
   selector: 'app-seller-form',
-  imports: [ReactiveFormsModule, PageHeaderComponent, StateComponent],
+  imports: [ReactiveFormsModule, PageHeaderComponent, StateComponent, AreaPickerComponent],
   templateUrl: './seller-form.component.html',
 })
 export class SellerFormComponent implements OnInit {
   /** Route param (edit mode) */
   @Input() id?: string;
+  @ViewChild(AreaPickerComponent) picker?: AreaPickerComponent;
 
   private fb = inject(FormBuilder);
   private api = inject(ApiService);
@@ -29,25 +33,22 @@ export class SellerFormComponent implements OnInit {
   private router = inject(Router);
   auth = inject(AuthService);
 
-  tahsils = signal<Tahsil[]>([]);
-  districts = signal<District[]>([]);
   loading = signal(false);
   saving = signal(false);
   error = signal<string | null>(null);
   defaultCommission = signal(5);
   imageFile: File | null = null;
   imagePreview = signal<string | null>(null);
+  /** Customers the seller has added (edit mode) */
+  customerCount = signal<number | null>(null);
 
   form = this.fb.group({
     shopName: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(100)]],
     ownerName: ['', [Validators.required, Validators.minLength(2)]],
     mobileNumber: ['', [Validators.required, Validators.pattern(MOBILE_PATTERN)]],
     email: ['', Validators.email],
-    tahsilId: ['', Validators.required],
-    districtIds: [[] as string[]],
-    sellsAcrossDistricts: [false],
     shopAddress: ['', [Validators.required, Validators.minLength(5)]],
-    pincode: ['', Validators.pattern(/^\d{6}$/)],
+    pincode: ['', [Validators.required, Validators.pattern(/^\d{6}$/)]],
     gstNumber: ['', Validators.pattern(GST_PATTERN)],
     upiId: ['', Validators.pattern(/^[\w.-]+@[\w.-]+$/)],
     bankDetails: this.fb.group({
@@ -58,6 +59,7 @@ export class SellerFormComponent implements OnInit {
     }),
     useDefaultCommission: [true],
     commissionRate: [null as number | null, [Validators.min(0), Validators.max(100)]],
+    customerLimit: [null as number | null, [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)]],
     status: ['Active'],
     settings: this.fb.group({
       enableDelivery: [false],
@@ -72,8 +74,6 @@ export class SellerFormComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.lookup.tahsils().subscribe((t) => this.tahsils.set(t.filter((x) => x.isActive)));
-    this.lookup.districts().subscribe((d) => this.districts.set(d.filter((x) => x.isActive)));
     if (this.auth.can('settings.view', 'settings.manage')) {
       this.lookup.settings().subscribe((s) => this.defaultCommission.set(s.commissionSettings.defaultCommission));
     }
@@ -85,12 +85,10 @@ export class SellerFormComponent implements OnInit {
     if (this.isEdit) {
       this.loading.set(true);
       this.api.get<any>(`/sellers/${this.id}`).subscribe({
-        next: ({ seller }: { seller: Seller }) => {
+        next: ({ seller, analytics }: { seller: Seller & { serviceArea?: any[] }; analytics: any }) => {
+          this.customerCount.set(analytics?.totalCustomers ?? null);
           this.form.patchValue({
             ...seller,
-            tahsilId: seller.tahsilId?._id ?? seller.tahsilId,
-            districtIds: seller.districtIds.map((d: any) => d._id ?? d),
-            sellsAcrossDistricts: !!seller.sellsAcrossDistricts,
             useDefaultCommission: seller.commissionRate === null || seller.commissionRate === undefined,
             commissionRate: seller.commissionRate,
             bankDetails: { accountHolder: '', accountNumber: '', ifscCode: '', bankName: '', ...(seller.bankDetails || {}) },
@@ -98,6 +96,9 @@ export class SellerFormComponent implements OnInit {
           } as any);
           this.form.controls.mobileNumber.disable(); // mobile is the login identity; change carefully via support
           this.imagePreview.set(seller.shopImage || null);
+          const t: any = seller.tahsilId;
+          if (t?.name) this.shopArea.set({ ok: true, message: [t.name, t.districtId?.name].filter(Boolean).join(', ') });
+          this.area.set((seller.serviceArea || []).map((r) => ({ state: r.state, district: r.district, talukas: r.allTalukas ? 'all' : r.talukas, count: r.talukas.length, pins: r.pincodeCount })));
           this.loading.set(false);
         },
         error: (e) => {
@@ -108,55 +109,44 @@ export class SellerFormComponent implements OnInit {
     }
   }
 
-  /** When the tahsil changes, pre-select its district. */
-  onTahsilChange() {
-    const t = this.tahsils().find((x) => x._id === this.form.value.tahsilId);
-    const districtId = (t?.districtId as any)?._id ?? t?.districtId;
-    const current = this.form.value.districtIds || [];
-    if (districtId && !current.includes(districtId)) this.form.patchValue({ districtIds: [...current, districtId] });
-    if (districtId) this.districtFilter.set(districtId);
-  }
-
-  // ---- PIN code -> tahsil ----
-  districtFilter = signal('');
+  // ---- Shop PIN code -> shop taluka ----
   pinLooking = signal(false);
-  pinResult = signal<{ ok: boolean; message: string } | null>(null);
-  tahsilOptions = computed(() => {
-    const d = this.districtFilter();
-    return d ? this.tahsils().filter((t) => ((t.districtId as any)?._id ?? t.districtId) === d) : this.tahsils();
-  });
-
-  setDistrictFilter(id: string) {
-    this.districtFilter.set(id);
-    const t = this.tahsils().find((x) => x._id === this.form.value.tahsilId);
-    if (id && t && ((t.districtId as any)?._id ?? t.districtId) !== id) this.form.patchValue({ tahsilId: '' });
-  }
+  shopArea = signal<{ ok: boolean; message: string } | null>(null);
 
   onPincode() {
     const pin = String(this.form.value.pincode || '').replace(/\D/g, '');
     this.form.patchValue({ pincode: pin }, { emitEvent: false });
-    this.pinResult.set(null);
+    this.shopArea.set(null);
     if (pin.length !== 6) return;
     this.pinLooking.set(true);
-    this.api.get<{ tahsilId: string; tahsilName: string; districtId: string; districtName: string; isActive: boolean }>(`/locations/pincode/${pin}`).subscribe({
+    this.api.get<{ state: string; district: string; taluka: string; isActive: boolean }>(`/locations/pincode/${pin}`).subscribe({
       next: (r) => {
         this.pinLooking.set(false);
-        if (!r.isActive) return this.pinResult.set({ ok: false, message: `${r.tahsilName} (${r.districtName}) is turned off in Locations` });
-        this.form.patchValue({ tahsilId: r.tahsilId });
-        this.onTahsilChange();
-        this.pinResult.set({ ok: true, message: `${r.tahsilName}, ${r.districtName}` });
+        const where = `${r.taluka}, ${r.district}, ${r.state}`;
+        this.shopArea.set(r.isActive ? { ok: true, message: where } : { ok: false, message: `${where} is turned off in Locations` });
       },
       error: (e) => {
         this.pinLooking.set(false);
-        this.pinResult.set({ ok: false, message: e.status === 404 ? 'No tahsil has this PIN yet. Pick the tahsil below; the PIN will be added to it.' : errorMessage(e) });
+        this.shopArea.set({ ok: false, message: e.status === 404 ? 'This PIN code was not found in India Post data' : errorMessage(e) });
       },
     });
   }
 
-  toggleDistrict(id: string, checked: boolean) {
-    const current = new Set(this.form.value.districtIds || []);
-    checked ? current.add(id) : current.delete(id);
-    this.form.patchValue({ districtIds: [...current] });
+  // ---- Selling area: per district, all / several / one taluka ----
+  area = signal<AreaRow[]>([]);
+
+  addArea(sel: AreaSelection) {
+    const row: AreaRow = { state: sel.state, district: sel.district, talukas: sel.talukas, count: sel.talukaList.length, pins: sel.talukaList.reduce((s, t) => s + t.pincodes.length, 0) };
+    this.area.set([...this.area().filter((r) => !(r.state === row.state && r.district === row.district)), row]);
+    this.picker?.reset();
+  }
+
+  removeArea(i: number) {
+    this.area.set(this.area().filter((_, idx) => idx !== i));
+  }
+
+  areaLabel(r: AreaRow) {
+    return r.talukas === 'all' ? 'All talukas' : r.talukas.join(', ');
   }
 
   onImage(e: Event) {
@@ -188,11 +178,11 @@ export class SellerFormComponent implements OnInit {
       shopName: v.shopName,
       ownerName: v.ownerName,
       email: v.email || '',
-      tahsilId: v.tahsilId,
-      districtIds: v.districtIds,
-      sellsAcrossDistricts: !!v.sellsAcrossDistricts,
       shopAddress: v.shopAddress,
-      pincode: v.pincode || '',
+      pincode: v.pincode,
+      customerLimit: Number(v.customerLimit),
+      // Empty = the shop sells only in its own taluka
+      serviceArea: this.area().map(({ state, district, talukas }) => ({ state, district, talukas })),
       gstNumber: v.gstNumber || '',
       upiId: v.upiId || '',
       bankDetails: v.bankDetails,
@@ -217,6 +207,8 @@ export class SellerFormComponent implements OnInit {
       )
       .subscribe({
         next: (sellerId) => {
+          this.lookup.invalidate('districts');
+          this.lookup.invalidate('tahsils');
           this.toast.success(this.isEdit ? 'Seller updated' : 'Seller created');
           this.router.navigate(['/sellers', sellerId]);
         },

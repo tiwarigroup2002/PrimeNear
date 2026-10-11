@@ -46,7 +46,7 @@ export interface Ref {
 }
 
 export interface District { _id: string; name: string; state?: string; isActive: boolean; tahsilCount?: number; sellerCount?: number; userCount?: number; }
-export interface Tahsil { _id: string; name: string; districtId: Ref | string; district?: string; latitude: number; longitude: number; radius: number; isActive: boolean; sellerCount?: number; userCount?: number; }
+export interface Tahsil { _id: string; name: string; districtId: Ref | string; district?: string; pincodes?: string[]; isActive: boolean; sellerCount?: number; userCount?: number; }
 export interface Category { _id: string; name: string; icon?: string; description?: string; isActive: boolean; sortOrder?: number; subCategoryCount?: number; productCount?: number; }
 export interface SubCategory { _id: string; name: string; categoryId: Ref | string; icon?: string; isActive: boolean; productCount?: number; }
 
@@ -125,6 +125,8 @@ export interface Product {
   _id: string;
   name: string;
   categoryId: any;
+  // Colour / size combinations (empty for simple products)
+  variants?: ProductVariant[];
   subCategoryId?: any;
   description?: string;
   images: string[];
@@ -159,4 +161,18 @@ export interface Customer {
   totalSpent: number;
   lastPurchaseDate?: string;
   createdAt: string;
+}
+
+export interface ProductVariant {
+  _id: string;
+  color: string;
+  size: string;
+  sku?: string;
+  sellingPrice: number;
+  mrp?: number;
+  gstAmount: number;
+  finalPrice: number;
+  stock: number;
+  images: string[];
+  isActive: boolean;
 }

@@ -33,22 +33,27 @@ async function loadCart(userId, deliveryType = 'Delivery') {
 
   const items = cart.items.map((i) => {
     const p = byId[String(i.productId)];
+    const u = p.unit(i.variantId);
     let problem = null;
-    if (!p.isActive) problem = 'No longer available';
-    else if (p.stock <= 0) problem = 'Out of stock';
-    else if (p.stock < i.quantity) problem = `Only ${p.stock} left`;
+    if (!u) problem = 'This colour / size is no longer available';
+    else if (!u.isActive) problem = 'No longer available';
+    else if (u.stock <= 0) problem = 'Out of stock';
+    else if (u.stock < i.quantity) problem = `Only ${u.stock} left`;
+    const unit = u || { sellingPrice: p.sellingPrice, mrp: p.mrp, gstAmount: p.gstAmount, finalPrice: p.finalPrice, stock: 0, image: p.images?.[0], variantLabel: '' };
     return {
       productId: p._id,
+      variantId: i.variantId || null,
+      variantLabel: unit.variantLabel || '',
       name: p.name,
-      image: p.images?.[0],
+      image: unit.image,
       quantity: i.quantity,
-      price: p.sellingPrice,
-      mrp: p.mrp,
+      price: unit.sellingPrice,
+      mrp: unit.mrp,
       gstRate: p.gstRate,
-      gstAmount: round2(p.gstAmount * i.quantity),
-      finalPrice: p.finalPrice,
-      lineTotal: round2(p.finalPrice * i.quantity),
-      stock: p.stock,
+      gstAmount: round2(unit.gstAmount * i.quantity),
+      finalPrice: unit.finalPrice,
+      lineTotal: round2(unit.finalPrice * i.quantity),
+      stock: unit.stock,
       problem,
     };
   });
@@ -85,23 +90,32 @@ function emptyTotals() {
   return { itemCount: 0, subtotal: 0, gst: 0, itemsTotal: 0, deliveryCharge: 0, total: 0, savings: 0 };
 }
 
-/** Adds or sets the quantity of a product. Switching to another shop's product clears the cart. */
-async function setItem(userId, sellerId, product, quantity, { add = false } = {}) {
+const sameLine = (i, productId, variantId) => String(i.productId) === String(productId) && String(i.variantId || '') === String(variantId || '');
+
+/**
+ * Adds or sets the quantity of a product (or one colour / size variant of it).
+ * Switching to another shop's product clears the cart.
+ */
+async function setItem(userId, sellerId, product, quantity, { add = false, variantId = null } = {}) {
   if (!product.isActive || product.isDeleted) throw ApiError.badRequest('This product is not available');
+  if (product.variants?.length && !variantId) throw ApiError.badRequest('Choose a colour / size first');
+  const u = product.unit(variantId);
+  if (!u || !u.isActive) throw ApiError.badRequest('This colour / size is not available');
+  const vid = u.variantId;
   let cart = await Cart.findOne({ userId });
   if (!cart) cart = new Cart({ userId, sellerId, items: [] });
   if (cart.sellerId && String(cart.sellerId) !== String(sellerId)) {
     cart.items = [];
   }
   cart.sellerId = sellerId;
-  const line = cart.items.find((i) => String(i.productId) === String(product._id));
+  const line = cart.items.find((i) => sameLine(i, product._id, vid));
   const qty = add ? (line?.quantity || 0) + quantity : quantity;
-  if (qty > product.stock) throw ApiError.badRequest(product.stock > 0 ? `Only ${product.stock} in stock` : 'Out of stock');
-  if (qty <= 0) cart.items = cart.items.filter((i) => String(i.productId) !== String(product._id));
+  if (qty > u.stock) throw ApiError.badRequest(u.stock > 0 ? `Only ${u.stock} in stock` : 'Out of stock');
+  if (qty <= 0) cart.items = cart.items.filter((i) => !sameLine(i, product._id, vid));
   else if (line) line.quantity = qty;
-  else cart.items.push({ productId: product._id, quantity: qty });
+  else cart.items.push({ productId: product._id, variantId: vid || undefined, quantity: qty });
   await cart.save();
   return cart;
 }
 
-module.exports = { loadCart, setItem, shopOptions };
+module.exports = { loadCart, setItem, shopOptions, sameLine };

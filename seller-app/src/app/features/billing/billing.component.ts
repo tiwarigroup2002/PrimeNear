@@ -9,7 +9,7 @@ import { errorMessage } from '../../core/interceptors/auth.interceptor';
 import { MOBILE_PATTERN } from '../../shared/validators/patterns';
 import { InrPipe, PageHeaderComponent, SheetComponent } from '../../shared';
 
-interface Line { productId: string; name: string; price: number; gstAmount: number; finalPrice: number; gstRate: number; stock: number; quantity: number; image?: string }
+interface Line { productId: string; variantId?: string; variantLabel?: string; name: string; price: number; gstAmount: number; finalPrice: number; gstRate: number; stock: number; quantity: number; image?: string }
 
 const DRAFT_KEY = 'pn_bill_draft';
 
@@ -96,17 +96,42 @@ export class BillingComponent implements OnInit {
     });
   }
 
+  /** Product with colours / sizes waiting for the seller to pick one */
+  variantPick = signal<any>(null);
+
+  variantLabel(v: any) {
+    return [v.color, v.size].filter(Boolean).join(' / ');
+  }
+
+  key(l: Line) {
+    return l.productId + (l.variantId || '');
+  }
+
   add(p: any) {
-    if (p.stock <= 0) return this.toast.warning(`${p.name} is out of stock`);
+    const variants = (p.variants || []).filter((v: any) => v.isActive !== false);
+    if (variants.length) {
+      this.variantPick.set({ ...p, variants });
+      return;
+    }
+    this.addUnit(p, null);
+  }
+
+  /** Adds one unit of a product, or of one colour / size of it. */
+  addUnit(p: any, v: any) {
+    const stock = v ? v.stock : p.stock;
+    const name = v ? `${p.name} (${this.variantLabel(v)})` : p.name;
+    if (stock <= 0) return this.toast.warning(`${name} is out of stock`);
     const lines = [...this.lines()];
-    const existing = lines.find((l) => l.productId === p._id);
+    const existing = lines.find((l) => l.productId === p._id && (l.variantId || null) === (v?._id || null));
     if (existing) {
-      if (existing.quantity >= p.stock) return this.toast.warning(`Only ${p.stock} in stock`);
+      if (existing.quantity >= stock) return this.toast.warning(`Only ${stock} in stock`);
       existing.quantity += 1;
     } else {
-      lines.unshift({ productId: p._id, name: p.name, price: p.sellingPrice, gstAmount: p.gstAmount, finalPrice: p.finalPrice, gstRate: p.gstRate, stock: p.stock, quantity: 1, image: p.images?.[0] });
+      const unit = v || p;
+      lines.unshift({ productId: p._id, variantId: v?._id, variantLabel: v ? this.variantLabel(v) : undefined, name: p.name, price: unit.sellingPrice, gstAmount: unit.gstAmount, finalPrice: unit.finalPrice, gstRate: p.gstRate, stock, quantity: 1, image: v?.images?.[0] || p.images?.[0] });
     }
     this.lines.set(lines);
+    this.variantPick.set(null);
     this.saveDraft();
     setTimeout(() => this.searchEl?.nativeElement.focus());
   }
@@ -118,12 +143,12 @@ export class BillingComponent implements OnInit {
       qty = l.stock;
     }
     if (qty <= 0) return this.remove(l);
-    this.lines.set(this.lines().map((x) => (x.productId === l.productId ? { ...x, quantity: qty } : x)));
+    this.lines.set(this.lines().map((x) => (this.key(x) === this.key(l) ? { ...x, quantity: qty } : x)));
     this.saveDraft();
   }
 
   remove(l: Line) {
-    this.lines.set(this.lines().filter((x) => x.productId !== l.productId));
+    this.lines.set(this.lines().filter((x) => this.key(x) !== this.key(l)));
     this.saveDraft();
   }
 
@@ -177,7 +202,7 @@ export class BillingComponent implements OnInit {
         customerId: this.customer()?._id || null,
         walkInName: this.customer() ? '' : this.walkInName,
         walkInMobile: this.customer() ? '' : walkInMobile,
-        items: this.lines().map((l) => ({ productId: l.productId, quantity: l.quantity })),
+        items: this.lines().map((l) => ({ productId: l.productId, variantId: l.variantId || undefined, quantity: l.quantity })),
         paymentMethod: this.paymentMethod,
         discount: disc,
         deliveryCharge: Number(this.deliveryCharge) || 0,

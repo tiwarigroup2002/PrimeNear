@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { PagedList } from '../../core/utils/paged-list';
@@ -13,10 +13,18 @@ import { InrPipe, PageHeaderComponent, PaginationComponent, SheetComponent, Stat
   selector: 'app-customer-list',
   imports: [FormsModule, RouterLink, InrPipe, TimeAgoPipe, PageHeaderComponent, PaginationComponent, StateComponent, SheetComponent],
   template: `
-    <app-page-header title="Customers" [subtitle]="list.total() + ' customers'">
-      <a routerLink="/customers/bulk-upload" class="btn btn-sm btn-outline-secondary"><i class="bi bi-upload"></i><span class="d-none d-md-inline ms-1">CSV</span></a>
-      <button class="btn btn-sm btn-primary" (click)="openAdd()"><i class="bi bi-person-plus me-1"></i>Add</button>
+    <app-page-header title="Customers" [subtitle]="usageText()">
+      <a routerLink="/customers/bulk-upload" class="btn btn-sm btn-outline-secondary" [class.disabled]="isFull()"><i class="bi bi-upload"></i><span class="d-none d-md-inline ms-1">CSV</span></a>
+      <button class="btn btn-sm btn-primary" (click)="openAdd()" [disabled]="isFull()"><i class="bi bi-person-plus me-1"></i>Add</button>
     </app-page-header>
+    @if (limit() !== null) {
+      <div class="card mb-3"><div class="card-body py-2">
+        <div class="d-flex justify-content-between small mb-1"><span class="fw-semibold">Customer limit</span><span>{{ used() }} / {{ limit() }}</span></div>
+        <div class="progress" style="height: 6px"><div class="progress-bar" [class.bg-danger]="isFull()" [style.width.%]="limit() ? (used() / limit()!) * 100 : 0"></div></div>
+        @if (isFull()) { <div class="small text-danger mt-1"><i class="bi bi-exclamation-circle me-1"></i>Limit reached. Ask the admin to allow more customers.</div> }
+        @else { <div class="small text-muted mt-1">You can add {{ limit()! - used() }} more customer(s).</div> }
+      </div></div>
+    }
     <div class="alert alert-info small py-2"><i class="bi bi-info-circle me-1"></i>Only customers you add here can see your shop in the user app.</div>
     <div class="d-flex flex-wrap gap-2 mb-3">
       <div class="input-group" style="max-width: 420px">
@@ -64,6 +72,12 @@ export class CustomerListComponent implements OnInit {
   addOpen = signal(!!inject(ActivatedRoute).snapshot.queryParamMap.get('add'));
   saving = signal(false);
   form = { mobileNumber: '', name: '', email: '', address: '' };
+
+  // Customer limit set by the admin (null = no limit)
+  used = computed(() => this.list.extra()['customerCount'] ?? this.list.total());
+  limit = computed<number | null>(() => this.list.extra()['customerLimit'] ?? null);
+  isFull = computed(() => this.limit() !== null && this.used() >= this.limit()!);
+  usageText = computed(() => (this.limit() !== null ? `${this.used()} of ${this.limit()} customers` : `${this.list.total()} customers`));
 
   ngOnInit() {
     this.list.load();

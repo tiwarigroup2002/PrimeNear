@@ -58,7 +58,7 @@ const NEXT: Record<string, { status: string; label: string; icon: string }> = {
               @for (it of o.items; track $index) {
                 <div class="m-item">
                   @if (it.image) { <img [src]="it.image" class="thumb" alt="" /> } @else { <span class="thumb"><i class="bi bi-box"></i></span> }
-                  <span class="flex-grow-1 min-w-0"><span class="d-block small fw-semibold">{{ it.productName }}</span><span class="cell-sub">{{ it.quantity }} × {{ it.price | inr }} + GST {{ it.gstRate }}%</span></span>
+                  <span class="flex-grow-1 min-w-0"><span class="d-block small fw-semibold">{{ it.productName }}@if (it.variantLabel) { <span class="badge text-bg-light border ms-1">{{ it.variantLabel }}</span> }</span><span class="cell-sub">{{ it.quantity }} × {{ it.price | inr }} + GST {{ it.gstRate }}%</span></span>
                   <span class="fw-semibold small">{{ it.subtotal | inr }}</span>
                 </div>
               }
@@ -87,7 +87,8 @@ const NEXT: Record<string, { status: string; label: string; icon: string }> = {
             <div class="card-body">
               <div class="fw-semibold">{{ o.userId?.name || o.customerSnapshot?.name || 'Walk-in customer' }}</div>
               <div class="small text-muted">{{ phone() || 'No mobile' }}</div>
-              @if (o.deliveryAddress?.fullAddress) { <div class="small mt-2"><i class="bi bi-geo-alt me-1"></i>{{ o.deliveryAddress.fullAddress }}, {{ o.deliveryAddress.city }} {{ o.deliveryAddress.zipCode }}</div> }
+              @if (o.deliveryAddress?.fullAddress) { <div class="small mt-2"><i class="bi bi-geo-alt me-1"></i>{{ o.deliveryAddress.fullAddress }}, {{ o.deliveryAddress.taluka || o.deliveryAddress.city }}@if (o.deliveryAddress.district) {, {{ o.deliveryAddress.district }} } - <strong>{{ o.deliveryAddress.zipCode }}</strong></div> }
+              @if (o.billingAddress?.fullAddress && o.billingAddress.fullAddress !== o.deliveryAddress?.fullAddress) { <div class="small mt-1 text-muted"><i class="bi bi-receipt me-1"></i>Bill to: {{ o.billingAddress.fullAddress }}, {{ o.billingAddress.district }} - {{ o.billingAddress.zipCode }}</div> }
               @if (o.customerNote) { <div class="small mt-2 text-muted">Note: {{ o.customerNote }}</div> }
               @if (phone()) {
                 <div class="d-flex gap-2 mt-3">

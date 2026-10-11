@@ -75,7 +75,7 @@ const RETURN_REASONS = ['Damaged / broken item', 'Wrong item received', 'Item mi
               @for (it of o.items; track $index) {
                 <a class="m-item" [routerLink]="['/product', it.productId]">
                   @if (it.image) { <img [src]="it.image" class="thumb" alt="" /> } @else { <span class="thumb"><i class="bi bi-box"></i></span> }
-                  <div class="flex-grow-1 min-w-0"><div class="line-clamp-2">{{ it.productName }}</div><small class="text-muted">{{ it.quantity }} × {{ it.subtotal / it.quantity | inr }}</small>
+                  <div class="flex-grow-1 min-w-0"><div class="line-clamp-2">{{ it.productName }}</div>@if (it.variantLabel) { <span class="variant-tag">{{ it.variantLabel }}</span> }<small class="text-muted">{{ it.quantity }} × {{ it.subtotal / it.quantity | inr }}</small>
                     @if (productReview(it.productId); as pr) { <div><app-stars [value]="pr.rating" /></div> }
                   </div>
                   <strong>{{ it.subtotal | inr }}</strong>
@@ -112,7 +112,10 @@ const RETURN_REASONS = ['Damaged / broken item', 'Wrong item received', 'Item mi
               <dt>Payment</dt><dd>{{ o.paymentMethod === 'Cash' ? 'Cash' : 'Online' }} · <app-status-badge [status]="o.paymentStatus" /></dd>
               @if (o.source === 'Online') {
                 <dt>{{ o.deliveryType === 'Pickup' ? 'Pickup' : 'Deliver to' }}</dt>
-                <dd>@if (o.deliveryType === 'Pickup') { From store: {{ o.sellerId?.shopAddress || o.sellerId?.shopName }} } @else { {{ o.deliveryAddress?.name }}<br />{{ o.deliveryAddress?.fullAddress }}@if (o.deliveryAddress?.city) {, {{ o.deliveryAddress.city }} }@if (o.deliveryAddress?.zipCode) { - {{ o.deliveryAddress.zipCode }} } }</dd>
+                <dd>@if (o.deliveryType === 'Pickup') { From store: {{ o.sellerId?.shopAddress || o.sellerId?.shopName }} } @else { {{ o.deliveryAddress?.name }}<br />{{ addr(o.deliveryAddress) }} }</dd>
+              }
+              @if (o.billingAddress?.fullAddress) {
+                <dt>Billing</dt><dd>{{ o.billingAddress.name }}<br />{{ addr(o.billingAddress) }}</dd>
               }
               @if (o.deliveredAt) { <dt>Delivered</dt><dd>{{ o.deliveredAt | date: 'd MMM y, h:mm a' }}</dd> }
               @if (o.customerNote) { <dt>Your note</dt><dd>{{ o.customerNote }}</dd> }
@@ -286,6 +289,11 @@ export class OrderDetailComponent implements OnInit {
 
   removeRetFile(i: number) {
     this.retFiles.set(this.retFiles().filter((_, idx) => idx !== i));
+  }
+
+  addr(a: any) {
+    if (!a) return '';
+    return [a.fullAddress, a.city !== a.taluka ? a.city : '', a.taluka, a.district, a.state].filter(Boolean).join(', ') + (a.zipCode ? ` - ${a.zipCode}` : '');
   }
 
   copyCode() {

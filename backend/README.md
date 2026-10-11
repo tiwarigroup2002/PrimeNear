@@ -137,16 +137,24 @@ from the seller and cancelled automatically after 30 minutes (stock released); u
 (paid orders are refunded); returns can be requested for 7 days after delivery and are approved/rejected by the shop
 (approval refunds and restocks); ratings are recomputed from visible reviews.
 
-### Location, delivery area and delivery OTP
+### Locations (PIN code based, no GPS / map), delivery area and delivery OTP
 
-- **Shop visibility**: a shop that added the customer is always shown, wherever the phone is. The phone location
-  (`location/update`) is only stored.
-- **Delivery area** (checked at checkout, `POST orders/check-delivery { addressId }` and again on `orders/create`):
-  the address PIN code equals the shop's PIN code → allowed. Otherwise the address tahsil is found from its PIN code
-  (tahsil `pincodes`, set by the admin in Locations) or its map point (tahsil radius); the shop must sell in that
-  tahsil (or in any tahsil of its districts when *sell across districts* is on). Store pickup is always allowed.
-- **Shop PIN code**: set in the admin seller form; typing it fills the tahsil (`GET /api/admin/locations/pincode/:pin`)
-  and it is added to that tahsil's PIN codes. A PIN code can belong to one tahsil only.
+- **India location directory**: state → district → taluka → PIN codes from the free *All India Pincode Directory*
+  (Open Government Data / India Post). It is downloaded once from `INDIA_LOCATIONS_URL` and cached in
+  `storage/india-locations.json` (~0.5 MB); PIN codes missing from it are looked up in the free India Post API
+  (`PINCODE_API_URL`, api.postalpincode.in). Set `INDIA_LOCATIONS_FILE` to a local CSV to work offline.
+  Admin: `GET /api/admin/locations/directory/{states,districts?state=,talukas?state=&district=}`,
+  `GET locations/pincode/:pin`, `POST locations/import { state, district, talukas: 'all' | [names] }`.
+- **Shop visibility**: a shop that added the customer is always shown and the customer can buy from anywhere.
+  There is no phone location tracking.
+- **Seller selling area** (admin seller form): shop PIN code (required) sets the shop's taluka; the selling area is a
+  list of `{ state, district, talukas: 'all' | [names] }` (all, several or one taluka per district) → `serviceTahsilIds`.
+  Without a selling area the shop sells only in its own taluka.
+- **Addresses**: PIN code is required; taluka, district and state are filled from it (`GET /api/user/pincode/:pin`).
+- **Delivery area** (checkout, `POST orders/check-delivery { addressId }` and again on `orders/create`): the delivery
+  address PIN code must be the shop's PIN code or a PIN code of a taluka in its selling area. Store pickup is always allowed.
+- **Billing address**: `billingAddressId` on `orders/create` (default: the delivery address, or the default address
+  for pickup). It needs a PIN code, can be anywhere in India, and is printed on the invoice ("Bill to").
 - **Delivery OTP**: app orders are marked *Delivered* only with the customer's 4 digit code.
   Seller: `POST /api/seller/orders/:id/delivery-otp` (SMS + app notification, 30 s resend) then
   `PUT /api/seller/orders/:id/status { status: 'Delivered', otp }` (5 attempts). The customer sees the code on the
@@ -157,3 +165,29 @@ from the seller and cancelled automatically after 30 minutes (stock released); u
 - **Media compression**: product photos are resized to max 1600 px with `sharp`; videos are re-encoded to 720p H.264
   in the background with `ffmpeg-static` (the file is replaced only when smaller). If either package is missing the
   original file is kept.
+
+### Product variants (colour / size)
+
+- `Product.variants[]`: `{ color, size, sku, sellingPrice, mrp, stock, images[], isActive }` — every combination has its
+  own price (GST rate stays at product level), stock and photos. Product `stock` is the total of its variants and its
+  price is the cheapest active variant ("from ₹…").
+- Seller: send `variants` (JSON string) with `POST/PUT /api/seller/products`. Existing variants keep their stock
+  (change it with `POST inventory/adjust-stock { productId, variantId, quantity }`); new ones take the given opening
+  stock. Photos per variant: `POST products/:id/variants/:variantId/images` (field `images`, up to 6, compressed);
+  keep existing ones by listing them in the variant's `images` on update.
+- Cart / orders / bills carry `variantId` + `variantLabel` ("Red / M"); stock is reserved and returned per variant.
+  User: `POST cart/add-item { productId, variantId }`; POS bill items `{ productId, variantId, quantity }`.
+
+### Seller payouts
+
+Online payments stay with the platform. An order becomes payable `payoutDelayDays` (default **7**) after delivery and
+then shows in *Admin → Payouts → Due for payout* (initiate, mark completed with UTR). `GET /api/admin/payouts/on-hold`
+(*On hold* tab) lists paid online orders not payable yet, per seller, with the date each becomes payable.
+
+### Customer limit per seller
+
+`customerLimit` is required when the admin creates a seller (`POST /api/admin/sellers`) and can be changed later.
+A shop cannot link more customers than that — checked for seller add / CSV import, admin user create / link / bulk
+link (rows over the limit fail with a message), and bill sharing (the bill is still shared, the number is just not
+added). `GET /api/seller/customers` returns `customerCount`, `customerLimit` and `customersLeft`.
+Older shops without a limit (`null`) are not restricted until the admin sets one.

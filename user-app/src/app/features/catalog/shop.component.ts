@@ -33,6 +33,7 @@ import { InrPipe, PageHeaderComponent, StarsComponent, StateComponent } from '..
         </div>
         <dl class="dl-grid small">
           @if (s.shopAddress) { <dt>Address</dt><dd>{{ s.shopAddress }}</dd> }
+          @if (s.deliveryArea?.length) { <dt>Delivers to</dt><dd>@for (r of s.deliveryArea; track r.district) { <div>{{ r.district }}: {{ r.talukas }}</div> }<small class="text-muted">Home delivery only to PIN codes in these talukas</small></dd> }
           <dt>Delivery</dt><dd>@if (s.delivery) { Home delivery · {{ s.deliveryCharge ? (s.deliveryCharge | inr: 0) : 'Free' }}@if (s.freeDeliveryAbove && s.deliveryCharge) { (free above {{ s.freeDeliveryAbove | inr: 0 }}) } } @else { Store pickup only }</dd>
           <dt>Cash on delivery</dt><dd>{{ s.cod ? 'Available' : 'Not available' }}</dd>
           @if (s.gstNumber) { <dt>GSTIN</dt><dd>{{ s.gstNumber }}</dd> }

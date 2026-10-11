@@ -9,6 +9,7 @@ router.get('/payments', requirePermission('payments.view'), ctrl.listPayments);
 router.get('/payments/dashboard', requirePermission('payments.view'), ctrl.dashboard);
 router.get('/payouts', requirePermission('payments.view'), ctrl.listPayouts);
 router.get('/payouts/pending', requirePermission('payments.view'), ctrl.pendingPayouts);
+router.get('/payouts/on-hold', requirePermission('payments.view'), ctrl.onHoldPayouts);
 router.post(
   '/payouts/initiate',
   requirePermission('payouts.manage'),

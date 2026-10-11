@@ -177,6 +177,8 @@ async function linkCustomerFromBill(seller, invoice) {
     try {
       customer = await addCustomer(seller, { mobileNumber: mobile, name: invoice.customerSnapshot?.name });
     } catch (err) {
+      // Customer limit reached: the bill is still shared, the number just is not added
+      if (err.code === 'CUSTOMER_LIMIT') return;
       if (err.statusCode !== 409) throw err;
       customer = await Customer.findOne({ sellerId: seller._id, mobileNumber: mobile });
     }

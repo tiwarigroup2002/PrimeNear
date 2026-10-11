@@ -7,7 +7,7 @@ export * from './components/status-badge.component';
 export * from './components/pagination.component';
 export * from './components/state.component';
 export * from './components/chart.component';
-export * from './components/map-picker.component';
+export * from './components/area-picker.component';
 export * from './components/entity-select.component';
 export * from './pipes/inr.pipe';
 export * from './pipes/time-ago.pipe';

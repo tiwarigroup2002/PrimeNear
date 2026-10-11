@@ -66,6 +66,28 @@ import { CanDirective, InrPipe, ModalComponent, PageHeaderComponent, StatCardCom
               @if (d.product.description) { <hr /><div class="small text-pre">{{ d.product.description }}</div> }
             </div>
           </div>
+          @if (d.product.variants?.length) {
+            <div class="card mb-3">
+              <div class="card-header"><span class="card-title">Colours & sizes ({{ d.product.variants.length }})</span></div>
+              <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                  <thead><tr><th>Colour / size</th><th class="text-end">Price</th><th class="text-end">MRP</th><th class="text-end">Stock</th><th>Photos</th><th>Status</th></tr></thead>
+                  <tbody>
+                    @for (v of d.product.variants; track v._id) {
+                      <tr>
+                        <td class="fw-semibold">{{ v.color }}@if (v.color && v.size) { / }{{ v.size }}@if (v.sku) { <div class="cell-sub">{{ v.sku }}</div> }</td>
+                        <td class="text-end">{{ v.finalPrice | inr }}</td>
+                        <td class="text-end text-muted">{{ v.mrp ? (v.mrp | inr) : '—' }}</td>
+                        <td class="text-end" [class.text-danger]="v.stock <= 0">{{ v.stock }}</td>
+                        <td>@for (i of v.images; track i) { <img [src]="i" class="thumb me-1" style="width:32px;height:32px" alt="" /> } @empty { <span class="text-muted small">—</span> }</td>
+                        <td><app-status-badge [status]="v.isActive ? 'Active' : 'Inactive'" /></td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          }
           <div class="card">
             <div class="card-header"><span class="card-title">Reviews ({{ d.reviews.length }})</span></div>
             <ul class="list-group list-group-flush">

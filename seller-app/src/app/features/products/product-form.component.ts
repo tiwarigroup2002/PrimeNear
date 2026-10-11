@@ -2,6 +2,7 @@ import { Component, Input, OnInit, computed, inject, signal } from '@angular/cor
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { Router } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { AppConfigService } from '../../core/services/app-config.service';
@@ -13,6 +14,8 @@ import { compressImage } from '../../core/utils/image';
 import { InrPipe, PageHeaderComponent, SheetComponent, StateComponent } from '../../shared';
 
 interface Cat { _id: string; name: string; subCategories: { _id: string; name: string }[] }
+/** One colour / size combination in the form */
+interface VariantRow { _id?: string; color: string; size: string; sellingPrice: any; mrp: any; stock: number; sku: string; isActive: boolean; images: string[]; newFiles: { file: File; url: string }[] }
 
 @Component({
   selector: 'app-product-form',
@@ -43,7 +46,7 @@ export class ProductFormComponent implements OnInit {
   newVideos: { file: File; url: string }[] = [];
 
   adjustOpen = signal(false);
-  adjust = { quantity: null as number | null, mode: 'add', reason: 'Added', note: '' };
+  adjust = { quantity: null as number | null, mode: 'add', reason: 'Added', note: '', variantId: '' };
 
   subs = computed(() => this.categories().find((c) => c._id === this.catId())?.subCategories ?? []);
   private catId = signal('');
@@ -75,6 +78,7 @@ export class ProductFormComponent implements OnInit {
         this.existingVideos = [...((product as any).videos || [])];
         this.newFiles = [];
         this.newVideos = [];
+        this.loadVariants(product);
         this.loading.set(false);
       },
       error: (e) => { this.toast.error(errorMessage(e)); this.router.navigate(['/products']); },
@@ -125,17 +129,112 @@ export class ProductFormComponent implements OnInit {
     });
   }
 
+  // ---- Colours & sizes (variants) ----
+  hasVariants = false;
+  colors: string[] = [];
+  sizes: string[] = [];
+  colorInput = '';
+  sizeInput = '';
+  rows: VariantRow[] = [];
+
+  private loadVariants(product: any) {
+    const vs: any[] = product.variants || [];
+    this.hasVariants = vs.length > 0;
+    this.colors = [...new Set(vs.map((v) => v.color).filter(Boolean))] as string[];
+    this.sizes = [...new Set(vs.map((v) => v.size).filter(Boolean))] as string[];
+    this.rows = vs.map((v) => ({ _id: v._id, color: v.color || '', size: v.size || '', sellingPrice: v.sellingPrice, mrp: v.mrp ?? null, stock: v.stock, sku: v.sku || '', isActive: v.isActive !== false, images: [...(v.images || [])], newFiles: [] }));
+  }
+
+  label(r: VariantRow) {
+    return [r.color, r.size].filter(Boolean).join(' / ');
+  }
+
+  get totalStock() {
+    return this.rows.reduce((s, r) => s + (Number(r.stock) || 0), 0);
+  }
+
+  addOption(kind: 'color' | 'size') {
+    const list = kind === 'color' ? this.colors : this.sizes;
+    const raw = (kind === 'color' ? this.colorInput : this.sizeInput).split(',').map((s) => s.trim()).filter(Boolean);
+    raw.forEach((v) => { if (!list.some((x) => x.toLowerCase() === v.toLowerCase())) list.push(v); });
+    if (kind === 'color') this.colorInput = ''; else this.sizeInput = '';
+    this.buildRows();
+  }
+
+  removeOption(kind: 'color' | 'size', i: number) {
+    (kind === 'color' ? this.colors : this.sizes).splice(i, 1);
+    this.buildRows();
+  }
+
+  /** One row for every colour × size; existing rows (price, stock, photos) are kept. */
+  buildRows() {
+    const colors = this.colors.length ? this.colors : [''];
+    const sizes = this.sizes.length ? this.sizes : [''];
+    const key = (c: string, s: string) => `${c.toLowerCase()}|${s.toLowerCase()}`;
+    const old = new Map(this.rows.map((r) => [key(r.color, r.size), r]));
+    const next: VariantRow[] = [];
+    for (const c of colors) {
+      for (const s of sizes) {
+        if (!c && !s) continue;
+        next.push(old.get(key(c, s)) ?? { color: c, size: s, sellingPrice: this.f.sellingPrice ?? null, mrp: this.f.mrp ?? null, stock: 0, sku: '', isActive: true, images: [], newFiles: [] });
+      }
+    }
+    this.rows = next;
+  }
+
+  /** Copies the first row's price / MRP to every row. */
+  samePriceForAll() {
+    const first = this.rows[0];
+    if (!first) return;
+    this.rows.forEach((r) => { r.sellingPrice = first.sellingPrice; r.mrp = first.mrp; });
+  }
+
+  async addRowImages(r: VariantRow, e: Event) {
+    const input = e.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+    for (const original of files) {
+      if (r.images.length + r.newFiles.length >= 6) { this.toast.warning('Maximum 6 photos per colour / size'); break; }
+      const file = await compressImage(original);
+      r.newFiles.push({ file, url: URL.createObjectURL(file) });
+    }
+  }
+
+  /** Uploads photos chosen for each variant once the product is saved (variants then have ids). */
+  private async uploadVariantPhotos(productId: string, saved: any[]) {
+    const key = (c: string, s: string) => `${(c || '').toLowerCase()}|${(s || '').toLowerCase()}`;
+    for (const r of this.rows.filter((x) => x.newFiles.length)) {
+      const v = saved.find((x) => key(x.color, x.size) === key(r.color, r.size));
+      if (!v) continue;
+      const fd = new FormData();
+      r.newFiles.forEach((n) => fd.append('images', n.file));
+      await firstValueFrom(this.http.post(`${this.api.base}/products/${productId}/variants/${v._id}/images`, fd));
+    }
+  }
+
   valid() {
-    return this.f.name?.trim().length >= 2 && this.f.categoryId && this.f.sellingPrice !== null && this.f.sellingPrice !== '' && Number(this.f.sellingPrice) >= 0;
+    const priceOk = this.hasVariants || (this.f.sellingPrice !== null && this.f.sellingPrice !== '' && Number(this.f.sellingPrice) >= 0);
+    return this.f.name?.trim().length >= 2 && this.f.categoryId && priceOk;
   }
 
   save() {
     this.touched = true;
     if (!this.valid()) return this.toast.warning('Fill the required fields');
-    if (this.f.mrp && Number(this.f.mrp) < Number(this.f.sellingPrice)) return this.toast.warning('MRP cannot be less than the selling price');
+    if (this.hasVariants) {
+      if (!this.rows.length) return this.toast.warning('Add at least one colour or size');
+      const bad = this.rows.find((r) => r.sellingPrice === null || r.sellingPrice === '' || Number(r.sellingPrice) < 0);
+      if (bad) return this.toast.warning(`Enter a price for ${this.label(bad)}`);
+      const badMrp = this.rows.find((r) => r.mrp && Number(r.mrp) < Number(r.sellingPrice));
+      if (badMrp) return this.toast.warning(`MRP of ${this.label(badMrp)} cannot be less than its price`);
+    } else if (this.f.mrp && Number(this.f.mrp) < Number(this.f.sellingPrice)) return this.toast.warning('MRP cannot be less than the selling price');
     const fd = new FormData();
-    const fields = ['name', 'categoryId', 'subCategoryId', 'description', 'mrp', 'costPrice', 'sellingPrice', 'gstRate', 'lowStockThreshold', 'sku', 'isActive'];
-    if (!this.isEdit) fields.push('stock');
+    const fields = ['name', 'categoryId', 'subCategoryId', 'description', 'costPrice', 'gstRate', 'lowStockThreshold', 'sku', 'isActive'];
+    if (!this.hasVariants) fields.push('mrp', 'sellingPrice');
+    if (!this.isEdit && !this.hasVariants) fields.push('stock');
+    // Turning variants off sends an empty list; on sends every combination
+    if (this.hasVariants || this.product()?.variants?.length) {
+      fd.append('variants', JSON.stringify(this.hasVariants ? this.rows.map((r) => ({ _id: r._id, color: r.color, size: r.size, sellingPrice: r.sellingPrice, mrp: r.mrp, sku: r.sku, isActive: r.isActive, stock: r.stock, images: r.images })) : []));
+    }
     fields.forEach((k) => {
       const v = this.f[k];
       if (v !== null && v !== undefined && !(this.isEdit && k === 'isActive' && this.product()?.disabledByAdmin)) fd.append(k, String(v));
@@ -149,7 +248,12 @@ export class ProductFormComponent implements OnInit {
     this.saving.set(true);
     const url = `${this.api.base}/products${this.isEdit ? '/' + this.id : ''}`;
     (this.isEdit ? this.http.put<any>(url, fd) : this.http.post<any>(url, fd)).subscribe({
-      next: (r) => {
+      next: async (r) => {
+        try {
+          if (this.hasVariants) await this.uploadVariantPhotos(r.data._id, r.data.variants || []);
+        } catch (err) {
+          this.toast.error(`Product saved, but some photos were not uploaded: ${errorMessage(err)}`);
+        }
         this.saving.set(false);
         this.toast.success(r.message || 'Saved');
         if (this.isEdit) this.load();
@@ -174,7 +278,8 @@ export class ProductFormComponent implements OnInit {
   saveAdjust() {
     const q = Number(this.adjust.quantity);
     if (!Number.isInteger(q) || (this.adjust.mode === 'add' && q === 0) || (this.adjust.mode === 'set' && q < 0)) return this.toast.warning('Enter a valid quantity');
-    this.api.post<any>('/inventory/adjust-stock', { productId: this.id, ...this.adjust, quantity: q }).subscribe({
+    if (this.hasVariants && !this.adjust.variantId) return this.toast.warning('Choose the colour / size');
+    this.api.post<any>('/inventory/adjust-stock', { productId: this.id, ...this.adjust, quantity: q, variantId: this.adjust.variantId || undefined }).subscribe({
       next: (r) => { this.toast.success(`Stock is now ${r.data.newStock}`); this.adjustOpen.set(false); this.load(); },
       error: (e) => this.toast.error(errorMessage(e)),
     });

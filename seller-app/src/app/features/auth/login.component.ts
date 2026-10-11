@@ -15,7 +15,7 @@ import { MOBILE_PATTERN } from '../../shared/validators/patterns';
       <div class="card auth-card shadow-sm">
         <div class="card-body p-4">
           <div class="text-center mb-4">
-            <span class="brand-mark text-white fs-3 mb-2" style="width:56px;height:56px"><i class="bi bi-shop"></i></span>
+            <img src="logo.png" alt="PrimeNear" class="mb-2 rounded-4 shadow-sm" width="72" height="72" />
             <h1 class="h4 fw-bold mb-1">{{ cfg.config().platformName }} Seller</h1>
             <p class="text-muted small mb-0">Manage your shop</p>
           </div>

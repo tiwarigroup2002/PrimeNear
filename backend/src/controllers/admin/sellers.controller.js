@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 const ApiError = require('../../utils/ApiError');
 const { ok, created } = require('../../utils/respond');
-const { getPagination, paginated, searchRegex, dateRange } = require('../../utils/pagination');
+const { getPagination, paginated, searchRegex, dateRange, escapeRegex } = require('../../utils/pagination');
+const { tahsilForPincode, resolveServiceArea, describeServiceArea } = require('../../services/locations.service');
 const { Seller, Tahsil, District, Order, Customer, Product, Payment, Payout } = require('../../models');
 const { audit } = require('../../services/audit.service');
 const { notifySeller } = require('../../services/notification.service');
@@ -34,14 +35,37 @@ async function statsFor(sellerIds) {
   return map;
 }
 
-async function validateLocation(tahsilId, districtIds) {
-  const tahsil = await Tahsil.findById(tahsilId);
-  if (!tahsil) throw ApiError.badRequest('Selected tahsil does not exist');
-  let ids = districtIds && districtIds.length ? districtIds : [tahsil.districtId];
-  ids = [...new Set(ids.map(String))];
-  const count = await District.countDocuments({ _id: { $in: ids } });
-  if (count !== ids.length) throw ApiError.badRequest('One or more districts do not exist');
-  return { tahsil, districtIds: ids };
+/**
+ * Shop location and selling area from the form:
+ *  - pincode     -> the shop's taluka (tahsilId), looked up in the India directory
+ *  - serviceArea -> [{ state, district, talukas: 'all' | [names] }] -> serviceTahsilIds + districtIds
+ * With no selling area the shop sells in its own taluka only.
+ */
+async function applyLocation(body, seller = null) {
+  if (body.pincode) {
+    const { tahsil } = await tahsilForPincode(body.pincode);
+    body.tahsilId = tahsil._id;
+  } else if (!seller) {
+    throw ApiError.badRequest('Shop PIN code is required');
+  } else {
+    delete body.pincode;
+  }
+  if (body.serviceArea !== undefined) {
+    const area = await resolveServiceArea(body.serviceArea);
+    if (!area.serviceTahsilIds.length) {
+      const own = await Tahsil.findById(body.tahsilId || seller.tahsilId);
+      area.serviceTahsilIds = [String(own._id)];
+      area.districtIds = [String(own.districtId)];
+    }
+    body.serviceTahsilIds = area.serviceTahsilIds;
+    body.districtIds = area.districtIds;
+  } else if (!seller) {
+    const own = await Tahsil.findById(body.tahsilId);
+    body.serviceTahsilIds = [own._id];
+    body.districtIds = [own.districtId];
+  }
+  delete body.serviceArea;
+  return body;
 }
 
 async function list(req, res) {
@@ -100,7 +124,7 @@ async function getOne(req, res) {
   if (effectivePermissions(req.admin).includes('payouts.manage')) data.bankDetails = seller.getBankDetails();
 
   return ok(res, {
-    seller: { ...data, effectiveCommissionRate: commissionRate },
+    seller: { ...data, effectiveCommissionRate: commissionRate, serviceArea: await describeServiceArea(seller) },
     analytics: {
       totalOrders: s.orders || 0,
       totalRevenue: s.revenue || 0,
@@ -116,24 +140,12 @@ async function getOne(req, res) {
   });
 }
 
-/** The shop's PIN code is added to its tahsil, so addresses with that PIN are inside the delivery area. */
-async function attachPincode(pincode, tahsilId) {
-  if (!pincode) return;
-  const owner = await Tahsil.findOne({ pincodes: pincode }).select('name');
-  if (owner && String(owner._id) !== String(tahsilId)) throw ApiError.badRequest(`PIN code ${pincode} belongs to tahsil ${owner.name}. Pick that tahsil or fix the PIN code.`);
-  if (!owner) await Tahsil.updateOne({ _id: tahsilId }, { $addToSet: { pincodes: pincode } });
-}
-
 async function create(req, res) {
   const body = { ...req.body };
-  const { districtIds, tahsil } = await validateLocation(body.tahsilId, body.districtIds);
-  body.districtIds = districtIds;
-  if (body.pincode) await attachPincode(body.pincode, tahsil._id);
-  else delete body.pincode;
-  if (await Seller.exists({ shopName: new RegExp(`^${body.shopName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') })) {
+  if (await Seller.exists({ shopName: new RegExp(`^${escapeRegex(body.shopName)}$`, 'i') })) {
     throw ApiError.conflict('A shop with this name already exists');
   }
-  body.sellsAcrossDistricts = Boolean(body.sellsAcrossDistricts) || districtIds.some((id) => String(id) !== String(tahsil.districtId));
+  await applyLocation(body);
   const seller = await Seller.create({ ...body, createdBy: req.admin._id });
   await audit(req, { action: 'Created', entityType: 'Seller', entityId: seller._id, newValue: seller });
   return created(res, seller, 'Seller created');
@@ -143,14 +155,7 @@ async function update(req, res) {
   const seller = await findSeller(req.params.sellerId);
   const before = seller.toJSON();
   const body = { ...req.body };
-  if (body.tahsilId || body.districtIds) {
-    const loc = await validateLocation(body.tahsilId || seller.tahsilId, body.districtIds || seller.districtIds);
-    body.districtIds = loc.districtIds;
-    const homeDistrict = String(loc.tahsil.districtId);
-    if (body.districtIds.some((id) => String(id) !== homeDistrict)) body.sellsAcrossDistricts = true;
-  }
-  if (body.pincode) await attachPincode(body.pincode, body.tahsilId || seller.tahsilId);
-  else if (body.pincode === '') body.pincode = undefined;
+  await applyLocation(body, seller);
   if ('commissionRate' in body && !effectivePermissions(req.admin).includes('sellers.commission')) {
     throw ApiError.forbidden('You cannot change seller commission');
   }
@@ -226,12 +231,14 @@ async function updateCommission(req, res) {
   return ok(res, { newRate: 0, commissionRate: 0 }, 'The shop keeps the full amount. The platform does not take a commission.');
 }
 
+/** PUT /sellers/:id/districts { districtIds } - sell in every saved taluka of these districts */
 async function assignDistricts(req, res) {
   const seller = await findSeller(req.params.sellerId);
-  const { districtIds } = await validateLocation(seller.tahsilId, req.body.districtIds);
+  const ids = [...new Set((req.body.districtIds || []).map(String))];
+  if (!ids.length || (await District.countDocuments({ _id: { $in: ids } })) !== ids.length) throw ApiError.badRequest('One or more districts do not exist');
   const old = seller.districtIds;
-  seller.districtIds = districtIds;
-  seller.sellsAcrossDistricts = true;
+  seller.serviceTahsilIds = await Tahsil.distinct('_id', { districtId: { $in: ids }, isActive: true });
+  seller.districtIds = ids;
   await seller.save();
   await seller.populate('districtIds', 'name');
   await audit(req, { action: 'DistrictsAssigned', entityType: 'Seller', entityId: seller._id, oldValue: { districtIds: old }, newValue: { districtIds } });

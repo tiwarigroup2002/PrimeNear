@@ -1,0 +1,11 @@
+officename,pincode,officeType,Deliverystatus,divisionname,regionname,circlename,Taluk,Districtname,statename,Telephone,RelatedSuboffice,RelatedHeadoffice
+Indore H.O,452001,H.O,Delivery,Indore City,Indore,Madhya Pradesh,Indore,Indore,MADHYA PRADESH,NA,NA,NA
+Rajwada S.O,452002,S.O,Delivery,Indore City,Indore,Madhya Pradesh,Indore,Indore,MADHYA PRADESH,NA,NA,Indore H.O
+Mhow S.O,453441,S.O,Delivery,Indore Moffusil,Indore,Madhya Pradesh,Mhow,Indore,MADHYA PRADESH,NA,NA,Indore H.O
+Kodariya B.O,452099,B.O,Delivery,Indore Moffusil,Indore,Madhya Pradesh,Mhow,Indore,MADHYA PRADESH,NA,Mhow S.O,Indore H.O
+Sanwer S.O,453551,S.O,Delivery,Indore Moffusil,Indore,Madhya Pradesh,Sanwer,Indore,MADHYA PRADESH,NA,NA,Indore H.O
+Dewas H.O,455001,H.O,Delivery,Dewas,Indore,Madhya Pradesh,Dewas,Dewas,MADHYA PRADESH,NA,NA,NA
+Sonkatch S.O,455118,S.O,Delivery,Dewas,Indore,Madhya Pradesh,Sonkutch,Dewas,MADHYA PRADESH,NA,NA,Dewas H.O
+"Connaught Place, New Delhi S.O",110001,S.O,Delivery,New Delhi Central,Delhi,Delhi,New Delhi,Central Delhi,DELHI,NA,NA,NA
+Aurangabad H.O,431001,H.O,Delivery,Aurangabad,Aurangabad,Maharashtra,Aurangabad,Aurangabad,MAHARASHTRA,NA,NA,NA
+Aurangabad S.O,824101,S.O,Delivery,Aurangabad,Patna,Bihar,Aurangabad,Aurangabad,BIHAR,NA,NA,NA

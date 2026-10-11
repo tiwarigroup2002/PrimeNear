@@ -22,7 +22,8 @@ import { AddressFormComponent, PageHeaderComponent, SheetComponent, StateCompone
             <i class="bi fs-4 text-primary" [class.bi-house]="a.type === 'Home'" [class.bi-briefcase]="a.type === 'Work'" [class.bi-geo-alt]="a.type === 'Other'"></i>
             <div class="flex-grow-1 min-w-0">
               <div class="fw-semibold">{{ a.name || a.type }} <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ a.type }}</span> @if (a.isDefault) { <span class="badge bg-primary">Default</span> }</div>
-              <div class="small text-muted">{{ a.fullAddress }}@if (a.city) {, {{ a.city }} }@if (a.state) {, {{ a.state }} }@if (a.zipCode) { - {{ a.zipCode }} }</div>
+              <div class="small text-muted">{{ line(a) }}</div>
+              @if (!a.zipCode) { <div class="small text-danger">Add a PIN code: it is needed for delivery and bills.</div> }
               @if (a.phoneNumber) { <div class="small text-muted"><i class="bi bi-telephone"></i> {{ a.phoneNumber }}</div> }
               <div class="d-flex gap-3 mt-2 small">
                 <a href="" (click)="$event.preventDefault(); edit(a)">Edit</a>
@@ -55,6 +56,10 @@ export class AddressesComponent implements OnInit {
 
   load() {
     this.api.get<Address[]>('/addresses').subscribe({ next: (a) => { this.items.set(a); this.loading.set(false); }, error: () => this.loading.set(false) });
+  }
+
+  line(a: Address) {
+    return [a.fullAddress, a.city !== a.taluka ? a.city : '', a.taluka, a.district, a.state].filter(Boolean).join(', ') + ` - ${a.zipCode || 'no PIN code'}`;
   }
 
   edit(a: Address | null) {

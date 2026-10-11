@@ -17,7 +17,8 @@ const sellerBody = () => ({
   shopName: 'Bhagwati Shoes',
   ownerName: 'Bhagwati',
   mobileNumber: '9876543210',
-  tahsilId: String(loc.tahsil._id),
+  pincode: '452002',
+  customerLimit: 100,
   shopAddress: 'Rajwada, Indore',
   bankDetails: { accountHolder: 'Bhagwati', accountNumber: '123456789012', ifscCode: 'SBIN0001234', bankName: 'SBI' },
   commissionRate: 5,
@@ -41,6 +42,33 @@ describe('Sellers', () => {
     const bad = await api(token).post('/sellers').send({ ...sellerBody(), shopName: 'X Shop', mobileNumber: '12345' }).expect(400);
     expect(bad.body.message).toMatch(/Mobile number/);
     await api(token).post('/sellers').send({ ...sellerBody(), shopName: 'Y Shop', gstNumber: 'BAD' }).expect(400);
+  });
+
+  test('selling area: state -> district -> all / some talukas, shop taluka from PIN code', async () => {
+    await api(token).post('/sellers').send({ ...sellerBody(), shopName: 'No Pin Shop', pincode: undefined }).expect(400);
+    await api(token).post('/sellers').send({ ...sellerBody(), shopName: 'Bad Taluka', serviceArea: [{ state: 'Madhya Pradesh', district: 'Indore', talukas: ['Atlantis'] }] }).expect(400);
+    const res = await api(token).post('/sellers').send({
+      ...sellerBody(),
+      shopName: 'Area Shop',
+      pincode: '453441',
+      serviceArea: [
+        { state: 'madhya pradesh', district: 'indore', talukas: ['Mhow', 'Sanwer'] },
+        { state: 'Madhya Pradesh', district: 'Dewas', talukas: 'all' },
+      ],
+    }).expect(201);
+    const s = await Seller.findById(res.body.data._id).populate('tahsilId serviceTahsilIds');
+    expect(s.tahsilId.name).toBe('Mhow');
+    expect(s.serviceTahsilIds.map((t) => t.name).sort()).toEqual(['Dewas', 'Mhow', 'Sanwer', 'Sonkutch']);
+    expect(s.districtIds).toHaveLength(2);
+    const detail = await api(token).get(`/sellers/${s._id}`).expect(200);
+    const dewas = detail.body.data.seller.serviceArea.find((r) => r.district === 'Dewas');
+    expect(dewas.allTalukas).toBe(true);
+    expect(detail.body.data.seller.serviceArea.find((r) => r.district === 'Indore').allTalukas).toBe(false);
+    // Update: only Sanwer
+    await api(token).put(`/sellers/${s._id}`).send({ serviceArea: [{ state: 'Madhya Pradesh', district: 'Indore', talukas: ['Sanwer'] }] }).expect(200);
+    const after = await Seller.findById(s._id).populate('serviceTahsilIds');
+    expect(after.serviceTahsilIds.map((t) => t.name)).toEqual(['Sanwer']);
+    await Seller.deleteOne({ _id: s._id });
   });
 
   test('same owner mobile can own a second shop', async () => {

@@ -1,5 +1,5 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { CartService } from '../../core/services/cart.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -36,6 +36,7 @@ import { InrPipe, PageHeaderComponent, StateComponent } from '../../shared';
 export class WishlistComponent implements OnInit {
   private api = inject(ApiService);
   private cart = inject(CartService);
+  private router = inject(Router);
   private toast = inject(ToastService);
   items = signal<any[]>([]);
   loading = signal(true);
@@ -55,6 +56,11 @@ export class WishlistComponent implements OnInit {
   }
 
   moveToCart(w: any) {
+    // Products with colours / sizes: choose one on the product page first
+    if (w.product.variants?.length) {
+      this.router.navigate(['/product', w.product._id]);
+      return;
+    }
     this.busy.set(w.product._id);
     this.cart.add(w.product._id).subscribe({
       next: () => { this.busy.set(null); this.toast.success('Moved to cart'); this.remove(w, true); },

@@ -67,6 +67,86 @@
           <textarea class="form-control" rows="3" [(ngModel)]="f.description" placeholder="Short description"></textarea>
         </div>
       </div>
+
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="card-title">Colours & sizes</span>
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="hasVar" [(ngModel)]="hasVariants" (ngModelChange)="$event && !rows.length && buildRows()" />
+            <label class="form-check-label small" for="hasVar">This product comes in colours / sizes</label>
+          </div>
+        </div>
+        @if (hasVariants) {
+          <div class="card-body">
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label class="form-label">Colours</label>
+                <div class="input-group input-group-sm">
+                  <input class="form-control" [(ngModel)]="colorInput" (keydown.enter)="$event.preventDefault(); addOption('color')" placeholder="e.g. Red, Blue" />
+                  <button class="btn btn-outline-primary" type="button" (click)="addOption('color')">Add</button>
+                </div>
+                <div class="d-flex flex-wrap gap-1 mt-2">
+                  @for (c of colors; track c; let i = $index) { <span class="badge rounded-pill text-bg-light border">{{ c }} <i class="bi bi-x ms-1" role="button" (click)="removeOption('color', i)" aria-label="Remove"></i></span> }
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Sizes</label>
+                <div class="input-group input-group-sm">
+                  <input class="form-control" [(ngModel)]="sizeInput" (keydown.enter)="$event.preventDefault(); addOption('size')" placeholder="e.g. S, M, L or 7, 8, 9" />
+                  <button class="btn btn-outline-primary" type="button" (click)="addOption('size')">Add</button>
+                </div>
+                <div class="d-flex flex-wrap gap-1 mt-2">
+                  @for (s of sizes; track s; let i = $index) { <span class="badge rounded-pill text-bg-light border">{{ s }} <i class="bi bi-x ms-1" role="button" (click)="removeOption('size', i)" aria-label="Remove"></i></span> }
+                </div>
+              </div>
+            </div>
+
+            @if (rows.length) {
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small text-muted">{{ rows.length }} combination(s) · price before GST ({{ f.gstRate }}%) · total stock {{ totalStock }}</span>
+                @if (rows.length > 1) { <button type="button" class="btn btn-sm btn-link p-0" (click)="samePriceForAll()">Same price for all</button> }
+              </div>
+              <div class="d-grid gap-2">
+                @for (r of rows; track label(r)) {
+                  <div class="variant-row" [class.opacity-50]="!r.isActive">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <strong>{{ label(r) }}</strong>
+                      <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" [id]="'va' + $index" [(ngModel)]="r.isActive" /><label class="form-check-label small" [for]="'va' + $index">Visible</label></div>
+                    </div>
+                    <div class="row g-2">
+                      <div class="col-6 col-md-3"><label class="form-label small mb-0 required">Price (₹)</label><input type="number" min="0" step="0.01" inputmode="decimal" class="form-control form-control-sm" [(ngModel)]="r.sellingPrice" [class.is-invalid]="touched && (r.sellingPrice === null || r.sellingPrice === '')" /></div>
+                      <div class="col-6 col-md-3"><label class="form-label small mb-0">MRP (₹)</label><input type="number" min="0" step="0.01" inputmode="decimal" class="form-control form-control-sm" [(ngModel)]="r.mrp" /></div>
+                      <div class="col-6 col-md-3">
+                        <label class="form-label small mb-0">{{ r._id ? 'Stock' : 'Opening stock' }}</label>
+                        <input type="number" min="0" inputmode="numeric" class="form-control form-control-sm" [(ngModel)]="r.stock" [disabled]="!!r._id" [title]="r._id ? 'Use Adjust stock to change' : ''" />
+                      </div>
+                      <div class="col-6 col-md-3"><label class="form-label small mb-0">SKU</label><input class="form-control form-control-sm" [(ngModel)]="r.sku" placeholder="optional" /></div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 mt-2 align-items-center">
+                      @for (img of r.images; track img; let i = $index) {
+                        <div class="img-tile sm"><img [src]="img" alt="" /><button class="btn btn-danger btn-sm" (click)="r.images.splice(i, 1)" aria-label="Remove photo">×</button></div>
+                      }
+                      @for (n of r.newFiles; track n.url; let i = $index) {
+                        <div class="img-tile sm"><img [src]="n.url" alt="" /><button class="btn btn-danger btn-sm" (click)="r.newFiles.splice(i, 1)" aria-label="Remove photo">×</button></div>
+                      }
+                      @if (r.images.length + r.newFiles.length < 6) {
+                        <label class="img-tile sm d-flex align-items-center justify-content-center border rounded text-muted small" style="border-style: dashed !important; cursor: pointer" [title]="'Photos of ' + label(r)">
+                          <i class="bi bi-camera"></i><input type="file" accept="image/*" multiple hidden (change)="addRowImages(r, $event)" />
+                        </label>
+                      }
+                      <span class="small text-muted">Photos for {{ label(r) }}</span>
+                    </div>
+                  </div>
+                }
+              </div>
+            } @else {
+              <div class="text-muted small">Add colours and/or sizes; a row is created for every combination.</div>
+            }
+          </div>
+        } @else {
+          <div class="card-body small text-muted">Turn on to sell the same product in different colours or sizes, each with its own price, stock and photos.</div>
+        }
+      </div>
     </div>
 
     <div class="col-lg-5">
@@ -74,13 +154,17 @@
         <div class="card-header"><span class="card-title">Price</span></div>
         <div class="card-body">
           <div class="row g-2 mb-2">
-            <div class="col-6"><label class="form-label required">Selling price (₹)</label><input type="number" min="0" step="0.01" inputmode="decimal" class="form-control" [(ngModel)]="f.sellingPrice" [class.is-invalid]="touched && (f.sellingPrice === null || f.sellingPrice === '')" /></div>
-            <div class="col-6"><label class="form-label">MRP (₹)</label><input type="number" min="0" step="0.01" inputmode="decimal" class="form-control" [(ngModel)]="f.mrp" /></div>
+            @if (hasVariants) {
+              <div class="col-12"><div class="alert alert-light border small py-2 mb-0"><i class="bi bi-palette me-1"></i>Prices are set for each colour / size in “Colours & sizes”.</div></div>
+            } @else {
+              <div class="col-6"><label class="form-label required">Selling price (₹)</label><input type="number" min="0" step="0.01" inputmode="decimal" class="form-control" [(ngModel)]="f.sellingPrice" [class.is-invalid]="touched && (f.sellingPrice === null || f.sellingPrice === '')" /></div>
+              <div class="col-6"><label class="form-label">MRP (₹)</label><input type="number" min="0" step="0.01" inputmode="decimal" class="form-control" [(ngModel)]="f.mrp" /></div>
+            }
             <div class="col-6"><label class="form-label">Cost price (₹)</label><input type="number" min="0" step="0.01" inputmode="decimal" class="form-control" [(ngModel)]="f.costPrice" /><div class="form-text">Private – for profit reports</div></div>
             <div class="col-6"><label class="form-label">GST</label>
               <select class="form-select" [(ngModel)]="f.gstRate">@for (g of cfg.config().gstSlabs; track g.percentage) { <option [ngValue]="g.percentage">{{ g.percentage }}%</option> }</select></div>
           </div>
-          <div class="bg-body-tertiary rounded p-2 small">
+          <div class="bg-body-tertiary rounded p-2 small" [class.d-none]="hasVariants">
             <div class="d-flex justify-content-between"><span>Selling price</span><span>{{ f.sellingPrice || 0 | inr }}</span></div>
             <div class="d-flex justify-content-between"><span>GST ({{ f.gstRate }}%)</span><span>{{ gst | inr }}</span></div>
             <div class="d-flex justify-content-between fw-bold fs-6 border-top mt-1 pt-1"><span>Customer pays</span><span>{{ finalPrice | inr }}</span></div>
@@ -92,12 +176,16 @@
 
       <div class="card mb-3">
         <div class="card-header d-flex justify-content-between align-items-center"><span class="card-title">Stock & code</span>
-          @if (isEdit) { <button class="btn btn-sm btn-outline-primary" (click)="adjust = { quantity: null, mode: 'add', reason: 'Added', note: '' }; adjustOpen.set(true)"><i class="bi bi-plus-slash-minus me-1"></i>Adjust stock</button> }</div>
+          @if (isEdit) { <button class="btn btn-sm btn-outline-primary" (click)="adjust = { quantity: null, mode: 'add', reason: 'Added', note: '', variantId: '' }; adjustOpen.set(true)"><i class="bi bi-plus-slash-minus me-1"></i>Adjust stock</button> }</div>
         <div class="card-body">
           <div class="row g-2">
             <div class="col-6">
-              <label class="form-label">{{ isEdit ? 'Current stock' : 'Opening stock' }}</label>
-              <input type="number" min="0" inputmode="numeric" class="form-control" [(ngModel)]="f.stock" [disabled]="isEdit" />
+              <label class="form-label">{{ hasVariants ? 'Total stock' : isEdit ? 'Current stock' : 'Opening stock' }}</label>
+              @if (hasVariants) {
+                <input class="form-control" [value]="totalStock" disabled title="Sum of all colours / sizes" />
+              } @else {
+                <input type="number" min="0" inputmode="numeric" class="form-control" [(ngModel)]="f.stock" [disabled]="isEdit" />
+              }
             </div>
             <div class="col-6"><label class="form-label">Alert below</label><input type="number" min="0" inputmode="numeric" class="form-control" [(ngModel)]="f.lowStockThreshold" /></div>
             <div class="col-12">
@@ -122,7 +210,7 @@
           <ul class="list-group list-group-flush small">
             @for (m of movements(); track m._id) {
               <li class="list-group-item d-flex justify-content-between">
-                <span>{{ m.reason }}@if (m.note) { <span class="text-muted"> · {{ m.note }}</span> }<div class="cell-sub">{{ m.createdAt | date: 'd MMM, h:mm a' }}</div></span>
+                <span>{{ m.reason }}@if (m.variantLabel) { <span class="badge text-bg-light border ms-1">{{ m.variantLabel }}</span> }@if (m.note) { <span class="text-muted"> · {{ m.note }}</span> }<div class="cell-sub">{{ m.createdAt | date: 'd MMM, h:mm a' }}</div></span>
                 <span class="text-end"><strong [class.text-success]="m.change > 0" [class.text-danger]="m.change < 0">{{ m.change > 0 ? '+' : '' }}{{ m.change }}</strong><div class="cell-sub">→ {{ m.balanceAfter }}</div></span>
               </li>
             } @empty { <li class="list-group-item text-muted text-center">No stock changes yet</li> }
@@ -141,6 +229,13 @@
 }
 
 <app-sheet [open]="adjustOpen()" title="Adjust stock" (closed)="adjustOpen.set(false)">
+  @if (hasVariants) {
+    <label class="form-label required">Colour / size</label>
+    <select class="form-select mb-3" [(ngModel)]="adjust.variantId">
+      <option value="">Choose</option>
+      @for (r of rows; track label(r)) { @if (r._id) { <option [value]="r._id">{{ label(r) }} (stock {{ r.stock }})</option> } }
+    </select>
+  }
   <div class="btn-group w-100 mb-3">
     <input type="radio" class="btn-check" id="m1" name="mode" value="add" [(ngModel)]="adjust.mode" /><label class="btn btn-outline-primary" for="m1">Add / remove</label>
     <input type="radio" class="btn-check" id="m2" name="mode" value="set" [(ngModel)]="adjust.mode" /><label class="btn btn-outline-primary" for="m2">Set exact count</label>

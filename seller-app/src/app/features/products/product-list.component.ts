@@ -57,7 +57,7 @@ import { InrPipe, PageHeaderComponent, PaginationComponent, SheetComponent, Stat
                   <strong>{{ p.finalPrice | inr: 0 }}</strong>
                   @if (p.mrp && p.mrp > p.sellingPrice) { <s class="text-muted ms-1">{{ p.mrp | inr: 0 }}</s> }
                   <span class="ms-2" [class.text-danger]="p.stock <= 0" [class.text-warning]="p.stock > 0 && p.stock <= p.lowStockThreshold" [class.text-muted]="p.stock > p.lowStockThreshold">
-                    {{ p.stock <= 0 ? 'Out of stock' : p.stock + ' in stock' }}
+                    {{ p.stock <= 0 ? 'Out of stock' : p.stock + ' in stock' }}@if (p.variants?.length) { · {{ p.variants!.length }} colour/size }
                   </span>
                 </span>
               </span>

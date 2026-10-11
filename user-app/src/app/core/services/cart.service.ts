@@ -20,8 +20,8 @@ export class CartService {
     return this.api.get<CartData>('/cart', { deliveryType }).pipe(tap((c) => this.setCount(c.items.reduce((s, i) => s + i.quantity, 0))));
   }
 
-  add(productId: string, quantity = 1): Observable<CartData> {
-    return this.api.post<CartData>('/cart/add-item', { productId, quantity }).pipe(
+  add(productId: string, quantity = 1, variantId?: string | null): Observable<CartData> {
+    return this.api.post<CartData>('/cart/add-item', { productId, quantity, ...(variantId ? { variantId } : {}) }).pipe(
       map((r) => {
         if (r.data.cartCleared) this.toast.warning('Your cart had items from another shop, so it was emptied');
         return r.data;
@@ -30,12 +30,13 @@ export class CartService {
     );
   }
 
-  update(productId: string, quantity: number): Observable<CartData> {
-    return this.api.put<CartData>('/cart/update-item', { productId, quantity }).pipe(map((r) => r.data), tap((c) => this.setCount(c.items.reduce((s, i) => s + i.quantity, 0))));
+  update(productId: string, quantity: number, variantId?: string | null): Observable<CartData> {
+    return this.api.put<CartData>('/cart/update-item', { productId, quantity, ...(variantId ? { variantId } : {}) }).pipe(map((r) => r.data), tap((c) => this.setCount(c.items.reduce((s, i) => s + i.quantity, 0))));
   }
 
-  remove(productId: string): Observable<CartData> {
-    return this.api.delete<CartData>(`/cart/remove-item/${productId}`).pipe(map((r) => r.data), tap((c) => this.setCount(c.items.reduce((s, i) => s + i.quantity, 0))));
+  remove(productId: string, variantId?: string | null): Observable<CartData> {
+    const q = variantId ? `?variantId=${variantId}` : '';
+    return this.api.delete<CartData>(`/cart/remove-item/${productId}${q}`).pipe(map((r) => r.data), tap((c) => this.setCount(c.items.reduce((s, i) => s + i.quantity, 0))));
   }
 
   reset(n = 0) {

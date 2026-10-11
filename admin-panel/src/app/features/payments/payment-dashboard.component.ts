@@ -93,7 +93,7 @@ export class PaymentDashboardComponent implements OnInit {
   methodSets = computed(() => [{ label: 'Amount', data: Object.values(this.d()?.paymentMethodBreakdown ?? {}).map((m: any) => m.amount) }]);
   flowSets = computed(() => {
     const d = this.d();
-    return d ? [{ label: 'Amount', data: [d.totalRevenue, d.totalCommission, d.totalPayoutsGiven, d.pendingPayouts], backgroundColor: ['#2563eb', '#16a34a', '#0891b2', '#f59e0b'] }] : [];
+    return d ? [{ label: 'Amount', data: [d.totalRevenue, d.totalCommission, d.totalPayoutsGiven, d.pendingPayouts], backgroundColor: ['#d70f64', '#16a34a', '#0891b2', '#f59e0b'] }] : [];
   });
   trendLabels = computed(() => (this.trend()?.series ?? []).map((s: any) => shortDate(s.date)));
   trendSets = computed(() => [

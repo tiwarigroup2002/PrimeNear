@@ -45,7 +45,7 @@ async function announceNewOrder(order, user) {
  * Cash (COD): order is visible to the seller immediately.
  * Online: a Razorpay order is created; the order waits for payment (30 min) with stock reserved.
  */
-async function placeOrder(user, { addressId, deliveryType = 'Delivery', paymentMethod, notes }) {
+async function placeOrder(user, { addressId, billingAddressId, deliveryType = 'Delivery', paymentMethod, notes }) {
   const data = await loadCart(user._id, deliveryType);
   if (!data.items.length) throw ApiError.badRequest('Your cart is empty');
   if (!data.canCheckout) throw ApiError.badRequest('Some items in your cart are not available. Please review your cart.');
@@ -57,16 +57,23 @@ async function placeOrder(user, { addressId, deliveryType = 'Delivery', paymentM
   if (paymentMethod === 'Online' && !opts.online) throw ApiError.badRequest('Online payment is not available right now');
   if (paymentMethod === 'Online' && !razorpay.isConfigured() && !mockPaymentsAllowed()) throw ApiError.badRequest('Online payment is not configured');
 
+  const defaultAddress = user.addresses.find((a) => a.isDefault) || user.addresses[0];
   let address = null;
   if (deliveryType === 'Delivery') {
-    address = user.addresses.id(addressId) || (!addressId && user.addresses.find((a) => a.isDefault));
+    address = user.addresses.id(addressId) || (!addressId && defaultAddress);
     if (!address) throw ApiError.badRequest('Please select a delivery address');
     const area = await checkDeliveryArea(seller, address);
     if (!area.deliverable) throw ApiError.badRequest(area.message);
   }
+  // Billing address (printed on the invoice): chosen one, else the delivery address, else the default one
+  const billing = (billingAddressId && user.addresses.id(billingAddressId)) || address || defaultAddress;
+  if (billingAddressId && !user.addresses.id(billingAddressId)) throw ApiError.badRequest('Billing address not found');
+  if (!billing) throw ApiError.badRequest('Please add a billing address');
+  if (!/^\d{6}$/.test(String(billing.zipCode || ''))) throw ApiError.badRequest('The billing address needs a 6 digit PIN code. Edit the address and add it.');
+  const snap = (a) => ({ name: a.name || user.name, fullAddress: a.fullAddress, city: a.city, taluka: a.taluka, district: a.district, state: a.state, zipCode: a.zipCode, phoneNumber: a.phoneNumber || user.mobileNumber });
 
   const products = await Product.find({ _id: { $in: data.items.map((i) => i.productId) } });
-  const lines = data.items.map((i) => ({ productId: i.productId, productName: i.name, image: i.image, quantity: i.quantity, price: i.price, gstRate: i.gstRate, gst: i.gstAmount, subtotal: i.lineTotal }));
+  const lines = data.items.map((i) => ({ productId: i.productId, variantId: i.variantId || undefined, variantLabel: i.variantLabel || undefined, productName: i.name, image: i.image, quantity: i.quantity, price: i.price, gstRate: i.gstRate, gst: i.gstAmount, subtotal: i.lineTotal }));
   const rate = await commissionRateFor(seller);
   const finalAmount = data.totals.total;
   const link = await Customer.findOne({ sellerId: seller._id, userId: user._id });
@@ -74,7 +81,7 @@ async function placeOrder(user, { addressId, deliveryType = 'Delivery', paymentM
 
   await takeStock(
     seller._id,
-    lines.map((l) => ({ product: products.find((p) => String(p._id) === String(l.productId)), quantity: l.quantity })),
+    lines.map((l) => ({ product: products.find((p) => String(p._id) === String(l.productId)), quantity: l.quantity, variantId: l.variantId })),
     { reason: 'OnlineOrder', refType: 'Order', refId: orderObjectId, byType: 'System' }
   );
 
@@ -88,7 +95,8 @@ async function placeOrder(user, { addressId, deliveryType = 'Delivery', paymentM
     customerSnapshot: { name: user.name || link?.name, mobileNumber: user.mobileNumber },
     items: lines,
     deliveryType,
-    deliveryAddress: address ? { name: address.name || user.name, fullAddress: address.fullAddress, city: address.city, state: address.state, zipCode: address.zipCode, phoneNumber: address.phoneNumber || user.mobileNumber, latitude: address.latitude, longitude: address.longitude } : undefined,
+    deliveryAddress: address ? snap(address) : undefined,
+    billingAddress: snap(billing),
     subtotal: data.totals.subtotal,
     gstAmount: data.totals.gst,
     deliveryCharge: data.totals.deliveryCharge,

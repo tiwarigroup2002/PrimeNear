@@ -1,13 +1,11 @@
 const mongoose = require('mongoose');
 
+/** Taluka / tahsil (sub-district). Added from the India location directory with its PIN codes. */
 const tahsilSchema = new mongoose.Schema(
   {
     districtId: { type: mongoose.Schema.Types.ObjectId, ref: 'District', required: true },
     name: { type: String, required: true, trim: true },
-    latitude: { type: Number, required: true },
-    longitude: { type: Number, required: true },
-    radius: { type: Number, default: 5 }, // km
-    // PIN codes in this tahsil. Used to fill the tahsil from a PIN and to check delivery addresses.
+    // PIN codes in this taluka. Delivery addresses are matched to sellers by PIN code.
     pincodes: { type: [String], default: [], index: true },
     isActive: { type: Boolean, default: true },
   },

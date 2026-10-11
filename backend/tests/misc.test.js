@@ -3,7 +3,7 @@ const { describe, test, before: beforeAll, after: afterAll } = require('node:tes
 const expect = require('./expect');
 const { connect, disconnect, login, api } = require('./setup');
 const { makeLocation, makeCatalog, makeProduct, makeUser, makeOrder } = require('./helpers');
-const { Seller, Order, Report, Dispute, AuditLog } = require('../src/models');
+const { Seller, Order, Report, Dispute, AuditLog, Tahsil } = require('../src/models');
 const { runDueSchedules } = require('../src/jobs/scheduler');
 const { ReportSchedule } = require('../src/models');
 
@@ -27,13 +27,33 @@ beforeAll(async () => {
 afterAll(disconnect);
 
 describe('Locations & categories', () => {
+  test('India directory: states, districts, talukas with PIN codes, PIN lookup and import', async () => {
+    const states = await api(token).get('/locations/directory/states').expect(200);
+    expect(states.body.data).toContain('Madhya Pradesh');
+    const districts = await api(token).get('/locations/directory/districts?state=Madhya%20Pradesh').expect(200);
+    expect(districts.body.data).toEqual(['Dewas', 'Indore']);
+    const talukas = await api(token).get('/locations/directory/talukas?state=Madhya%20Pradesh&district=Indore').expect(200);
+    expect(talukas.body.data.map((t) => t.name)).toEqual(['Indore', 'Mhow', 'Sanwer']);
+    expect(talukas.body.data.find((t) => t.name === 'Mhow').pincodes).toEqual(['452099', '453441']);
+    const pin = await api(token).get('/locations/pincode/455118').expect(200);
+    expect([pin.body.data.state, pin.body.data.district, pin.body.data.taluka]).toEqual(['Madhya Pradesh', 'Dewas', 'Sonkutch']);
+    await api(token).post('/locations/import').send({ state: 'Madhya Pradesh', district: 'Dewas', talukas: ['Nowhere'] }).expect(400);
+    const imp = await api(token).post('/locations/import').send({ state: 'Madhya Pradesh', district: 'Dewas', talukas: 'all' }).expect(201);
+    expect(imp.body.data.tahsils.map((t) => t.name).sort()).toEqual(['Dewas', 'Sonkutch']);
+    await api(token).post('/locations/import').send({ state: 'Madhya Pradesh', district: 'Dewas' }).expect(201); // again: no duplicates
+    expect(await Tahsil.countDocuments({ districtId: imp.body.data.district._id })).toBe(2);
+  });
+
   test('district with tahsils, duplicate protection and delete guard', async () => {
-    const res = await api(token).post('/locations/districts').send({ name: 'Ujjain', tahsils: [{ name: 'Ujjain City', latitude: 23.18, longitude: 75.77 }] }).expect(201);
+    const res = await api(token).post('/locations/districts').send({ name: 'Ujjain', state: 'Madhya Pradesh', tahsils: [{ name: 'Ujjain', pincodes: ['456001'] }] }).expect(201);
     expect(res.body.data.tahsils).toHaveLength(1);
-    await api(token).post('/locations/districts').send({ name: 'ujjain' }).expect(409);
-    await api(token).post('/locations/tahsils').send({ districtId: res.body.data.district._id, name: 'Nagda', latitude: 91, longitude: 75 }).expect(400);
-    const t = await api(token).post('/locations/tahsils').send({ districtId: res.body.data.district._id, name: 'Nagda', latitude: 23.45, longitude: 75.41 }).expect(201);
-    expect(t.body.data.radius).toBe(5);
+    await api(token).post('/locations/districts').send({ name: 'ujjain', state: 'Madhya Pradesh' }).expect(409);
+    // Same district name in another state is a different district
+    await api(token).post('/locations/districts').send({ name: 'Ujjain', state: 'Rajasthan' }).expect(201);
+    await api(token).post('/locations/tahsils').send({ districtId: res.body.data.district._id, name: 'Nagda', pincodes: ['4562'] }).expect(400);
+    const t = await api(token).post('/locations/tahsils').send({ districtId: res.body.data.district._id, name: 'Nagda', pincodes: ['456335'] }).expect(201);
+    expect(t.body.data.pincodes).toEqual(['456335']);
+    expect(t.body.data.latitude).toBe(undefined);
     const list = await api(token).get(`/locations/tahsils?district=${res.body.data.district._id}`).expect(200);
     expect(list.body.data).toHaveLength(2);
     await api(token).delete(`/locations/districts/${res.body.data.district._id}`).expect(200);

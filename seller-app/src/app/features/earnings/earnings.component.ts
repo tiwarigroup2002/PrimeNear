@@ -12,7 +12,7 @@ import { ChartComponent, InrPipe, PageHeaderComponent, PaginationComponent, Shee
     <app-page-header title="Earnings & payouts" subtitle="Money from app orders is paid to your bank after the holding period" />
     <app-state [loading]="!e()" />
     @if (e(); as e) {
-      <div class="card mb-3 border-0 text-white" style="background: linear-gradient(135deg, #059669, #0e7490)"><div class="card-body">
+      <div class="card mb-3 border-0 text-white" style="background: linear-gradient(135deg, #d70f64, #ff4f8b)"><div class="card-body">
         <div class="small opacity-75">Due for next payout</div>
         <div class="display-6 fw-bold">{{ e.pendingAmount | inr }}</div>
         <div class="small">On hold (return window): {{ e.onHoldAmount | inr }} · In transfer: {{ e.totalPending | inr }}</div>

@@ -44,12 +44,13 @@ import { AddressFormComponent, InrPipe, PageHeaderComponent, SheetComponent, Sta
                   <i class="bi big" [class.bi-house]="a.type === 'Home'" [class.bi-briefcase]="a.type === 'Work'" [class.bi-geo-alt]="a.type === 'Other'"></i>
                   <span class="flex-grow-1 min-w-0">
                     <span class="fw-semibold">{{ a.name || a.type }}</span> <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ a.type }}</span>
-                    <small class="d-block text-muted">{{ a.fullAddress }}@if (a.city) {, {{ a.city }} }@if (a.zipCode) { - {{ a.zipCode }} }</small>
+                    <small class="d-block text-muted">{{ line(a) }}</small>
                     @if (a.phoneNumber) { <small class="d-block text-muted"><i class="bi bi-telephone"></i> {{ a.phoneNumber }}</small> }
                   </span>
                 </button>
               }
               @if (!addresses().length) { <div class="text-muted small">No saved address. <a href="" (click)="$event.preventDefault(); addrOpen.set(true)">Add one</a> to get home delivery.</div> }
+              <small class="d-block text-muted mt-1">The shop delivers only to PIN codes in its selling area.</small>
               @if (addressId()) {
                 @if (areaCheck() === null) {
                   <div class="small text-muted mt-1"><span class="spinner-border spinner-border-sm me-1"></span>Checking delivery area...</div>
@@ -63,7 +64,34 @@ import { AddressFormComponent, InrPipe, PageHeaderComponent, SheetComponent, Sta
           }
 
           <div class="card mb-3"><div class="card-body">
-            <h2 class="h6 fw-semibold mb-2">{{ deliveryType() === 'Delivery' ? 3 : 2 }}. Payment</h2>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h2 class="h6 fw-semibold mb-0">{{ deliveryType() === 'Delivery' ? 3 : 2 }}. Billing address</h2>
+              <button class="btn btn-sm btn-link" (click)="editing.set(null); addrOpen.set(true)"><i class="bi bi-plus-lg"></i> Add new</button>
+            </div>
+            @if (deliveryType() === 'Delivery') {
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="sameBill" [checked]="sameBilling()" (change)="sameBilling.set($any($event.target).checked)" />
+                <label class="form-check-label small" for="sameBill">Same as delivery address</label>
+              </div>
+            }
+            @if (deliveryType() === 'Pickup' || !sameBilling()) {
+              @for (a of addresses(); track a._id) {
+                <button class="option-card mb-2" [class.active]="billingId() === a._id" (click)="billingId.set(a._id)">
+                  <i class="bi bi-receipt big"></i>
+                  <span class="flex-grow-1 min-w-0">
+                    <span class="fw-semibold">{{ a.name || a.type }}</span> <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ a.type }}</span>
+                    <small class="d-block text-muted">{{ line(a) }}</small>
+                    @if (!a.zipCode) { <small class="d-block text-danger">Add a PIN code to use this address</small> }
+                  </span>
+                </button>
+              }
+              @if (!addresses().length) { <div class="text-muted small">Add an address for the bill (PIN code required).</div> }
+            }
+            <small class="d-block text-muted">Printed on your invoice.</small>
+          </div></div>
+
+          <div class="card mb-3"><div class="card-body">
+            <h2 class="h6 fw-semibold mb-2">{{ deliveryType() === 'Delivery' ? 4 : 3 }}. Payment</h2>
             <div class="d-grid gap-2">
               <button class="option-card" [class.active]="method() === 'Online'" [class.disabled]="!c.options?.online" [disabled]="!c.options?.online" (click)="method.set('Online')">
                 <i class="bi bi-phone big"></i>
@@ -83,7 +111,7 @@ import { AddressFormComponent, InrPipe, PageHeaderComponent, SheetComponent, Sta
           <div class="card"><div class="card-body">
             <h2 class="h6 fw-semibold">Order summary · {{ c.shopName }}</h2>
             @for (l of c.items; track l.productId) {
-              <div class="d-flex justify-content-between small py-1 gap-2"><span class="text-truncate">{{ l.quantity }} × {{ l.name }}</span><span class="flex-shrink-0">{{ l.lineTotal | inr }}</span></div>
+              <div class="d-flex justify-content-between small py-1 gap-2"><span class="text-truncate">{{ l.quantity }} × {{ l.name }}@if (l.variantLabel) { ({{ l.variantLabel }}) }</span><span class="flex-shrink-0">{{ l.lineTotal | inr }}</span></div>
             }
             <hr class="my-2" />
             <div class="summary-row small"><span>Items total</span><span>{{ c.totals.subtotal | inr }}</span></div>
@@ -108,7 +136,7 @@ import { AddressFormComponent, InrPipe, PageHeaderComponent, SheetComponent, Sta
       </div>
     }
 
-    <app-sheet [open]="addrOpen()" title="Add delivery address" (closed)="addrOpen.set(false)">
+    <app-sheet [open]="addrOpen()" title="Add address" (closed)="addrOpen.set(false)">
       <app-address-form [address]="editing()" (saved)="addressSaved($event)" />
     </app-sheet>
   `,
@@ -133,11 +161,21 @@ export class CheckoutComponent implements OnInit {
   placing = signal(false);
   notes = '';
 
+  // Billing address: same as delivery by default; required for pickup too (PIN code needed)
+  sameBilling = signal(true);
+  billingId = signal<string | null>(null);
+  billingAddressId = computed(() => (this.deliveryType() === 'Delivery' && this.sameBilling() ? this.addressId() : this.billingId()));
+  billingOk = computed(() => !!this.addresses().find((a) => a._id === this.billingAddressId())?.zipCode);
+
   canPlace = computed(() => {
     const c = this.c();
-    if (!c?.canCheckout || !this.method()) return false;
+    if (!c?.canCheckout || !this.method() || !this.billingOk()) return false;
     return this.deliveryType() === 'Pickup' || (!!this.addressId() && !!this.areaCheck()?.deliverable);
   });
+
+  line(a: Address) {
+    return [a.fullAddress, a.city !== a.taluka ? a.city : '', a.taluka, a.district, a.state].filter(Boolean).join(', ') + (a.zipCode ? ` - ${a.zipCode}` : '');
+  }
 
   /** Result of the delivery-area check for the selected address (null while checking). */
   areaCheck = signal<{ deliverable: boolean; message: string } | null>(null);
@@ -160,7 +198,12 @@ export class CheckoutComponent implements OnInit {
 
   ngOnInit() {
     this.api.get<Address[]>('/addresses').subscribe({
-      next: (a) => { this.addresses.set(a); this.addressId.set(a.find((x) => x.isDefault)?._id ?? a[0]?._id ?? null); },
+      next: (a) => {
+        this.addresses.set(a);
+        const def = a.find((x) => x.isDefault)?._id ?? a[0]?._id ?? null;
+        this.addressId.set(def);
+        this.billingId.set(def);
+      },
       error: () => {},
     });
     this.loadCart(true);
@@ -191,13 +234,21 @@ export class CheckoutComponent implements OnInit {
   addressSaved(a: Address) {
     this.addrOpen.set(false);
     this.addresses.set([...this.addresses().filter((x) => x._id !== a._id).map((x) => (a.isDefault ? { ...x, isDefault: false } : x)), a]);
-    this.addressId.set(a._id);
+    if (this.deliveryType() === 'Delivery' && this.sameBilling()) this.addressId.set(a._id);
+    else this.billingId.set(a._id);
+    if (!this.addressId()) this.addressId.set(a._id);
   }
 
   place() {
     if (!this.canPlace()) return;
     this.placing.set(true);
-    const body = { deliveryType: this.deliveryType(), addressId: this.deliveryType() === 'Delivery' ? this.addressId() : undefined, paymentMethod: this.method(), notes: this.notes || undefined };
+    const body = {
+      deliveryType: this.deliveryType(),
+      addressId: this.deliveryType() === 'Delivery' ? this.addressId() : undefined,
+      billingAddressId: this.billingAddressId() || undefined,
+      paymentMethod: this.method(),
+      notes: this.notes || undefined,
+    };
     this.api.post<any>('/orders/create', body).subscribe({
       next: async (r) => {
         const order = r.data.order;

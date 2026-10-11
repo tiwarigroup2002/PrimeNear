@@ -1,10 +1,12 @@
 const ApiError = require('../../utils/ApiError');
 const { ok, created } = require('../../utils/respond');
 const { fileUrl } = require('../../middleware/upload');
-const { User, Customer, LoginHistory, Tahsil, Notification } = require('../../models');
+const { User, Customer, LoginHistory, Notification } = require('../../models');
+const { lookupPincode } = require('../../services/india-locations.service');
+const { tahsilForPincode } = require('../../services/locations.service');
 const { sendOtp, verifyOtp } = require('../../services/otp.service');
 const { signUserToken } = require('../../middleware/userAuth');
-const { linkedSellers, reachableShops } = require('../../services/shop-access.service');
+const { linkedSellers } = require('../../services/shop-access.service');
 const { getSettings } = require('../../services/settings.service');
 const { getPagination, paginated } = require('../../utils/pagination');
 
@@ -39,14 +41,13 @@ async function verify(req, res) {
 }
 
 async function me(req, res) {
-  const reach = await reachableShops(req.user);
-  const sellers = reach.locationRequired ? reach.all : reach.sellers;
+  const sellers = await linkedSellers(req.userId);
   if (sellers.length && !sellers.some((s) => String(s._id) === String(req.user.currentActiveSellerId))) {
     req.user.currentActiveSellerId = sellers[0]._id;
     await req.user.save();
   }
   await req.user.populate('tahsilId', 'name');
-  return ok(res, { user: req.user, sellers, activeSellerId: req.user.currentActiveSellerId, tahsilName: reach.tahsilName, locationRequired: reach.locationRequired });
+  return ok(res, { user: req.user, sellers, activeSellerId: req.user.currentActiveSellerId });
 }
 
 async function logout(req, res) {
@@ -75,35 +76,31 @@ async function uploadImage(req, res) {
   return ok(res, { profileImage: req.user.profileImage }, 'Photo updated');
 }
 
-/** Distance in km between two coordinates (haversine). */
-function distanceKm(a, b) {
-  const R = 6371;
-  const rad = (d) => (d * Math.PI) / 180;
-  const dLat = rad(b.latitude - a.latitude);
-  const dLon = rad(b.longitude - a.longitude);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.latitude)) * Math.cos(rad(b.latitude)) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
+/** GET /pincode/:pincode - state, district and taluka for a PIN code (fills the address form) */
+async function pincodeInfo(req, res) {
+  const matches = await lookupPincode(req.params.pincode);
+  return ok(res, { pincode: req.params.pincode, ...matches[0], matches });
 }
 
-/** POST /location/update { latitude, longitude } -> nearest active tahsil within its radius */
-async function updateLocation(req, res) {
-  const { latitude, longitude } = req.body;
-  const tahsils = await Tahsil.find({ isActive: true }).populate('districtId', 'name');
-  let best = null;
-  tahsils.forEach((t) => {
-    const d = distanceKm({ latitude, longitude }, t);
-    if (d <= (t.radius || 5) && (!best || d < best.d)) best = { t, d };
-  });
-  req.user.lastLocation = { latitude, longitude, updatedAt: new Date() };
-  req.user.tahsilId = best ? best.t._id : null;
-  await req.user.save();
-  return ok(res, {
-    tahsilId: best?.t._id || null,
-    tahsilName: best ? `${best.t.name}, ${best.t.districtId?.name}` : null,
-    distanceKm: best ? Math.round(best.d * 10) / 10 : null,
-    inServiceArea: Boolean(best),
-    linkedSellers: (await reachableShops(req.user)).sellers,
-  });
+/**
+ * Fills state / district / taluka from the PIN code. The PIN decides the area, so the
+ * typed state is replaced with the one from the India directory.
+ */
+async function withArea(body) {
+  if (!body.zipCode) return body;
+  const [m] = await lookupPincode(body.zipCode);
+  return { ...body, state: m.state, district: m.district, taluka: m.taluka, city: body.city || m.taluka };
+}
+
+/** The user's taluka (for reports) follows the default address PIN code. */
+async function syncUserTahsil(user) {
+  const def = user.addresses.find((a) => a.isDefault) || user.addresses[0];
+  if (!def?.zipCode) return;
+  try {
+    user.tahsilId = (await tahsilForPincode(def.zipCode)).tahsil._id;
+  } catch {
+    // unknown PIN: keep the previous value
+  }
 }
 
 // ---- Addresses ----
@@ -113,9 +110,11 @@ async function listAddresses(req, res) {
 
 async function addAddress(req, res) {
   if (req.user.addresses.length >= 10) throw ApiError.badRequest('You can save up to 10 addresses');
-  const isDefault = req.body.isDefault || !req.user.addresses.length;
+  const body = await withArea(req.body);
+  const isDefault = body.isDefault || !req.user.addresses.length;
   if (isDefault) req.user.addresses.forEach((a) => (a.isDefault = false));
-  req.user.addresses.push({ ...req.body, isDefault });
+  req.user.addresses.push({ ...body, isDefault });
+  await syncUserTahsil(req.user);
   await req.user.save();
   return created(res, req.user.addresses.at(-1), 'Address added');
 }
@@ -123,8 +122,10 @@ async function addAddress(req, res) {
 async function updateAddress(req, res) {
   const a = req.user.addresses.id(req.params.addressId);
   if (!a) throw ApiError.notFound('Address not found');
-  if (req.body.isDefault) req.user.addresses.forEach((x) => (x.isDefault = false));
-  Object.assign(a, req.body);
+  const body = await withArea(req.body);
+  if (body.isDefault) req.user.addresses.forEach((x) => (x.isDefault = false));
+  Object.assign(a, body);
+  await syncUserTahsil(req.user);
   await req.user.save();
   return ok(res, a, 'Address updated');
 }
@@ -135,6 +136,7 @@ async function deleteAddress(req, res) {
   const wasDefault = a.isDefault;
   a.deleteOne();
   if (wasDefault && req.user.addresses.length) req.user.addresses[0].isDefault = true;
+  await syncUserTahsil(req.user);
   await req.user.save();
   return ok(res, null, 'Address deleted');
 }
@@ -143,6 +145,7 @@ async function setDefaultAddress(req, res) {
   const a = req.user.addresses.id(req.params.addressId);
   if (!a) throw ApiError.notFound('Address not found');
   req.user.addresses.forEach((x) => (x.isDefault = String(x._id) === String(a._id)));
+  await syncUserTahsil(req.user);
   await req.user.save();
   return ok(res, req.user.addresses, 'Default address set');
 }
@@ -182,7 +185,7 @@ async function publicConfig(_req, res) {
 }
 
 module.exports = {
-  requestOtp, verify, me, logout, updateProfile, updatePreferences, uploadImage, updateLocation,
+  requestOtp, verify, me, logout, updateProfile, updatePreferences, uploadImage, pincodeInfo,
   listAddresses, addAddress, updateAddress, deleteAddress, setDefaultAddress,
   notifications, markRead, markAllRead, deleteNotification, publicConfig,
 };

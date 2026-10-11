@@ -17,15 +17,21 @@ const sellerFields = {
   ownerName: Joi.string().trim().min(2).max(100),
   mobileNumber: mobile(),
   email: Joi.string().email().allow(''),
-  tahsilId: objectId(),
-  districtIds: Joi.array().items(objectId()).unique(),
-  sellsAcrossDistricts: Joi.boolean(),
   shopAddress: Joi.string().trim().min(5).max(300),
-  pincode: Joi.string().trim().allow('').pattern(/^\d{6}$/).messages({ 'string.pattern.base': 'PIN code must be 6 digits' }),
+  // Shop PIN code -> shop taluka (from the India directory)
+  pincode: Joi.string().trim().pattern(/^\d{6}$/).messages({ 'string.pattern.base': 'PIN code must be 6 digits' }),
+  // Selling area: per district, all talukas or a list of talukas
+  serviceArea: Joi.array().items(Joi.object({
+    state: Joi.string().trim().required(),
+    district: Joi.string().trim().required(),
+    talukas: Joi.alternatives().try(Joi.string().valid('all'), Joi.array().items(Joi.string().trim()).min(1)).default('all'),
+  })).max(100),
   gstNumber: Joi.string().allow('').uppercase().pattern(/^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/).messages({ 'string.pattern.base': 'Invalid GST number' }),
   bankDetails,
   upiId: Joi.string().allow('').pattern(/^[\w.-]+@[\w.-]+$/).messages({ 'string.pattern.base': 'Invalid UPI ID' }),
   commissionRate: Joi.number().min(0).max(100).allow(null),
+  // How many customers the shop may add
+  customerLimit: Joi.number().integer().min(1).max(1000000).messages({ 'number.base': 'Customer limit must be a number', 'number.min': 'Customer limit must be at least 1' }),
   settings: Joi.object({
     enableDelivery: Joi.boolean(),
     deliveryCharge: Joi.number().min(0),
@@ -40,7 +46,8 @@ const createSchema = Joi.object({
   shopName: sellerFields.shopName.required(),
   ownerName: sellerFields.ownerName.required(),
   mobileNumber: sellerFields.mobileNumber.required(),
-  tahsilId: sellerFields.tahsilId.required(),
+  pincode: sellerFields.pincode.required(),
+  customerLimit: sellerFields.customerLimit.required().messages({ 'any.required': 'Enter how many customers this seller can add' }),
   shopAddress: sellerFields.shopAddress.required(),
   status: Joi.string().valid('Active', 'Blocked').default('Active'),
 });

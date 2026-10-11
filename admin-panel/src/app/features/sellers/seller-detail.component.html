@@ -32,7 +32,7 @@
   <div class="row g-3 mb-3">
     <div class="col-6 col-lg-3"><app-stat-card label="Total orders" [value]="d.analytics.totalOrders | number" icon="bi-bag-check" color="primary" /></div>
     <div class="col-6 col-lg-3"><app-stat-card label="Total revenue" [value]="d.analytics.totalRevenue | inr: 0" icon="bi-currency-rupee" color="success" [hint]="'Avg ' + (d.analytics.averageOrderValue | inr: 0)" /></div>
-    <div class="col-6 col-lg-3"><app-stat-card label="Customers" [value]="d.analytics.totalCustomers | number" icon="bi-people" color="info" /></div>
+    <div class="col-6 col-lg-3"><app-stat-card label="Customers" [value]="(d.analytics.totalCustomers | number) + (d.seller.customerLimit ? ' / ' + d.seller.customerLimit : '')" icon="bi-people" [color]="d.seller.customerLimit && d.analytics.totalCustomers >= d.seller.customerLimit ? 'danger' : 'info'" [hint]="d.seller.customerLimit ? (d.analytics.totalCustomers >= d.seller.customerLimit ? 'Limit reached' : (d.seller.customerLimit - d.analytics.totalCustomers) + ' more allowed') : 'No limit set'" /></div>
     <div class="col-6 col-lg-3"><app-stat-card label="Rating" [value]="d.analytics.ratingCount ? (d.analytics.rating | number: '1.1-1') + ' ⭐' : '—'" icon="bi-star" color="warning" [hint]="d.analytics.ratingCount + ' ratings'" /></div>
   </div>
 
@@ -57,10 +57,10 @@
                 <dt>Mobile</dt><dd>{{ d.seller.mobileNumber }}</dd>
                 <dt>Email</dt><dd>{{ d.seller.email || '—' }}</dd>
                 <dt>Address</dt><dd>{{ d.seller.shopAddress }}@if (d.seller.pincode) { - {{ d.seller.pincode }} }</dd>
-                <dt>Tahsil</dt><dd>{{ d.seller.tahsilId?.name }}</dd>
-                <dt>Sells in</dt><dd>@for (x of d.seller.districtIds; track x._id) { <span class="badge text-bg-light border me-1">{{ x.name }}</span> }</dd>
+                <dt>Shop taluka</dt><dd>{{ d.seller.tahsilId?.name }}@if (d.seller.tahsilId?.districtId?.name) {, {{ d.seller.tahsilId.districtId.name }} }</dd>
+                <dt>Selling area</dt><dd>@for (r of d.seller.serviceArea || []; track r.district + r.state) { <div><span class="fw-semibold">{{ r.district }}</span> <span class="text-muted small">({{ r.state }})</span>: {{ r.allTalukas ? "All talukas" : r.talukas.join(", ") }} <span class="text-muted small">· {{ r.pincodeCount }} PIN codes</span></div> }</dd>
                 <dt>GSTIN</dt><dd>{{ d.seller.gstNumber || '—' }}</dd>
-                <dt>Payout</dt><dd>Shop keeps 100%. Online payments are collected by the platform and paid to the shop in full.@if (d.seller.sellsAcrossDistricts) { <span class="d-block small text-muted">Sells in every tahsil of the assigned districts.</span> }</dd>
+                <dt>Payout</dt><dd>Shop keeps 100%. Online payments are collected by the platform and paid to the shop in full.</dd>
                 <dt>Products</dt><dd>{{ d.analytics.products.total }} total · {{ d.analytics.products.active }} active · {{ d.analytics.products.outOfStock }} out of stock</dd>
                 <dt>Delivery</dt><dd>@if (d.seller.settings?.enableDelivery) { Yes · ₹{{ d.seller.settings.deliveryCharge }} (free above ₹{{ d.seller.settings.freeDeliveryAbove }}) } @else { Pickup only }</dd>
               </dl>

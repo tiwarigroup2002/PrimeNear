@@ -1,22 +1,18 @@
 import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { DatePipe } from '@angular/common';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Product } from '../../core/models/api.models';
 import { errorMessage } from '../../core/interceptors/auth.interceptor';
-import { InrPipe, ProductCardComponent, StateComponent, StatusBadgeComponent } from '../../shared';
+import { ProductCardComponent, StateComponent } from '../../shared';
 import { catIcon } from '../../shared/cat-icon';
 
 @Component({
   selector: 'app-home',
-  imports: [RouterLink, DatePipe, InrPipe, ProductCardComponent, StateComponent, StatusBadgeComponent],
+  imports: [RouterLink, ProductCardComponent, StateComponent],
   template: `
     <app-state [loading]="loading()" [error]="error()" loadingText="Opening shop..." />
     @if (data(); as d) {
-      @if (d.locationRequired || d.outOfArea) {
-        <app-state [empty]="true" icon="bi-geo-alt" [emptyText]="d.locationRequired ? 'Allow location. You can order only from the tahsil you are standing in.' : ('You are in ' + (d.tahsilName || 'another tahsil') + '. No shop that added your number sells here.')" />
-      } @else {
       <section class="shop-hero mb-3">
         <div class="d-flex align-items-center gap-3 position-relative" style="z-index:1">
           @if (d.seller.shopImage) { <img [src]="d.seller.shopImage" class="hero-img" alt="" /> } @else { <span class="hero-img"><i class="bi bi-shop"></i></span> }
@@ -49,21 +45,13 @@ import { catIcon } from '../../shared/cat-icon';
         </div>
       }
 
-      @if (d.recentOrders.length) {
-        <div class="section-title"><h2>Your recent orders</h2><a routerLink="/orders" class="small">All orders</a></div>
-        <div class="card"><div class="m-list">
-          @for (o of d.recentOrders; track o._id) {
-            <a class="m-item" [routerLink]="['/orders', o._id]">
-              <span class="thumb thumb-sm"><i class="bi bi-bag-check"></i></span>
-              <div class="flex-grow-1 min-w-0">
-                <div class="fw-semibold">{{ o.orderId }}</div>
-                <small class="text-muted">{{ o.items.length }} item(s) · {{ o.createdAt | date: 'd MMM' }}</small>
-              </div>
-              <div class="text-end"><div class="fw-semibold">{{ o.finalAmount | inr: 0 }}</div><app-status-badge [status]="o.orderStatus" /></div>
-            </a>
-          }
-        </div></div>
-      }
+      <!-- Orders are one tap away (also the bag icon in the header) instead of a list on the home page -->
+      <a routerLink="/orders" class="orders-link mt-3">
+        <span class="orders-link-icon"><i class="bi bi-bag-check"></i></span>
+        <span class="flex-grow-1"><span class="fw-semibold d-block">My orders</span><small class="text-muted">Track orders and see your order history</small></span>
+        @if (d.recentOrders.length) { <span class="badge rounded-pill text-bg-light border">{{ d.recentOrders.length }}+</span> }
+        <i class="bi bi-chevron-right text-muted"></i>
+      </a>
 
       @if (d.featured.length) {
         <div class="section-title"><h2>Best sellers</h2><a routerLink="/search" [queryParams]="{ sortBy: 'popular' }" class="small">See all</a></div>
@@ -76,7 +64,6 @@ import { catIcon } from '../../shared/cat-icon';
       @if (!d.featured.length && !d.newArrivals.length) {
         <app-state [empty]="true" icon="bi-box-seam" emptyText="This shop has not added any products yet." />
       }
-      }
     }
   `,
 })
@@ -85,24 +72,21 @@ export class HomeComponent {
   auth = inject(AuthService);
   loading = signal(true);
   error = signal<string | null>(null);
-  data = signal<{ seller: any; categories: any[]; featured: Product[]; newArrivals: Product[]; recentOrders: any[]; locationRequired?: boolean; outOfArea?: boolean; tahsilName?: string } | null>(null);
+  data = signal<{ seller: any; categories: any[]; featured: Product[]; newArrivals: Product[]; recentOrders: any[] } | null>(null);
   icon = catIcon;
 
   private loadedFor: string | null | undefined;
-  private loadedTick = -1;
 
   constructor() {
     // Reload whenever the active shop changes (shop switcher in the header)
     effect(() => {
       const id = this.auth.activeSellerId();
-      const tick = this.auth.locationTick();
-      if (id !== this.loadedFor || tick !== this.loadedTick) untracked(() => this.load(tick));
+      if (id !== this.loadedFor) untracked(() => this.load());
     });
   }
 
-  load(tick = this.auth.locationTick()) {
+  load() {
     this.loadedFor = this.auth.activeSellerId();
-    this.loadedTick = tick;
     this.loading.set(true);
     this.error.set(null);
     this.data.set(null);

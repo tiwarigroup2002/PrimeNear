@@ -12,7 +12,12 @@ const sellerSchema = new mongoose.Schema(
     ownerName: { type: String, required: true, trim: true },
     mobileNumber: { type: String, required: true, match: /^[6-9]\d{9}$/, index: true },
     email: { type: String, lowercase: true, trim: true },
+    // Taluka where the shop is (from the shop PIN code)
     tahsilId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tahsil', required: true },
+    // Selling area: the talukas the shop delivers to (all / several / one per district).
+    // Delivery addresses must have a PIN code of one of these talukas (or the shop PIN code).
+    serviceTahsilIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Tahsil', index: true }],
+    // Districts of the selling area (kept in sync with serviceTahsilIds, used for filters)
     districtIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'District' }],
     shopAddress: { type: String, required: true },
     // PIN code of the shop. Delivery is always allowed to addresses with the same PIN code.
@@ -29,8 +34,8 @@ const sellerSchema = new mongoose.Schema(
     upiId: String,
     // Kept for old orders. New sales do not charge a platform cut — the shop keeps the full amount.
     commissionRate: { type: Number, min: 0, max: 100, default: 0 },
-    // Default is the shop's own tahsil. When true, the shop can sell in every tahsil of districtIds.
-    sellsAcrossDistricts: { type: Boolean, default: false },
+    // How many customers the shop may add (set by the admin). null = no limit (older shops).
+    customerLimit: { type: Number, min: 0, default: null },
     // Amount to recover from the next payout (e.g. refunds on already settled orders)
     pendingDeduction: { type: Number, default: 0 },
     status: { type: String, enum: ACCOUNT_STATUS, default: 'Active', index: true },

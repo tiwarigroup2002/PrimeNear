@@ -5,7 +5,7 @@ const { getPagination, paginated } = require('../../utils/pagination');
 const { generateId } = require('../../utils/ids');
 const { fileUrl } = require('../../middleware/upload');
 const { Product, Cart, Order, Payment, Review, Invoice, ReturnRequest, Dispute, Seller } = require('../../models');
-const { loadCart, setItem } = require('../../services/cart.service');
+const { loadCart, setItem, sameLine } = require('../../services/cart.service');
 const { requireLinkedSeller, checkDeliveryArea } = require('../../services/shop-access.service');
 const checkout = require('../../services/checkout.service');
 const razorpay = require('../../services/razorpay.service');
@@ -32,7 +32,7 @@ async function addItem(req, res) {
   await requireLinkedSeller(req.userId, product.sellerId);
   const before = await Cart.findOne({ userId: req.userId });
   const cleared = Boolean(before?.items.length && String(before.sellerId) !== String(product.sellerId));
-  await setItem(req.userId, product.sellerId, product, req.body.quantity || 1, { add: true });
+  await setItem(req.userId, product.sellerId, product, req.body.quantity || 1, { add: true, variantId: req.body.variantId });
   if (String(req.user.currentActiveSellerId) !== String(product.sellerId)) {
     req.user.currentActiveSellerId = product.sellerId;
     await req.user.save();
@@ -43,14 +43,25 @@ async function addItem(req, res) {
 
 async function updateItem(req, res) {
   const cart = await Cart.findOne({ userId: req.userId });
-  if (!cart?.items.some((i) => String(i.productId) === String(req.body.productId))) throw ApiError.notFound('Item not in cart');
+  if (!cart?.items.some((i) => sameLine(i, req.body.productId, req.body.variantId))) throw ApiError.notFound('Item not in cart');
   const product = await Product.findById(req.body.productId);
-  await setItem(req.userId, cart.sellerId, product, req.body.quantity);
+  if (req.body.quantity === 0) {
+    cart.items = cart.items.filter((i) => !sameLine(i, req.body.productId, req.body.variantId));
+    await cart.save();
+  } else {
+    await setItem(req.userId, cart.sellerId, product, req.body.quantity, { variantId: req.body.variantId });
+  }
   return ok(res, cartView(await loadCart(req.userId)));
 }
 
+/** DELETE /cart/remove-item/:productId?variantId= */
 async function removeItem(req, res) {
-  await Cart.updateOne({ userId: req.userId }, { $pull: { items: { productId: req.params.productId } } });
+  const variantId = req.query.variantId || null;
+  const cart = await Cart.findOne({ userId: req.userId });
+  if (cart) {
+    cart.items = cart.items.filter((i) => !sameLine(i, req.params.productId, variantId));
+    await cart.save();
+  }
   return ok(res, cartView(await loadCart(req.userId)), 'Item removed');
 }
 
@@ -199,11 +210,12 @@ async function reorder(req, res) {
   const skipped = [];
   for (const it of order.items) {
     const p = await Product.findOne({ _id: it.productId, isDeleted: false, isActive: true });
-    if (!p || p.stock <= 0) {
-      skipped.push(it.productName);
+    const u = p?.unit(it.variantId);
+    if (!u || !u.isActive || u.stock <= 0) {
+      skipped.push(it.variantLabel ? `${it.productName} (${it.variantLabel})` : it.productName);
       continue;
     }
-    await setItem(req.userId, order.sellerId, p, Math.min(it.quantity, p.stock), { add: true });
+    await setItem(req.userId, order.sellerId, p, Math.min(it.quantity, u.stock), { add: true, variantId: u.variantId });
   }
   req.user.currentActiveSellerId = order.sellerId;
   await req.user.save();

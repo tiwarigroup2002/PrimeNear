@@ -28,23 +28,21 @@ router.get('/profile', account.me);
 router.put('/profile', validate(Joi.object({ name: Joi.string().trim().min(2).max(80), email: Joi.string().email().allow(''), dateOfBirth: Joi.date().max('now').allow(null), gender: Joi.string().valid('Male', 'Female', 'Other') }).min(1)), account.updateProfile);
 router.post('/profile/upload-image', imageUpload('users', { maxSizeMb: 3 }).single('image'), account.uploadImage);
 router.put('/profile/preferences', validate(Joi.object({ language: Joi.string().valid('hi', 'en'), theme: Joi.string().valid('light', 'dark'), pushNotifications: Joi.boolean(), emailNotifications: Joi.boolean(), smsNotifications: Joi.boolean(), whatsappNotifications: Joi.boolean() }).min(1)), account.updatePreferences);
-router.post('/location/update', validate(Joi.object({ latitude: Joi.number().min(-90).max(90).required(), longitude: Joi.number().min(-180).max(180).required() })), account.updateLocation);
 router.get('/dashboard', shop.dashboard);
+router.get('/pincode/:pincode', validate(Joi.object({ pincode: Joi.string().pattern(/^\d{6}$/).required().messages({ 'string.pattern.base': 'PIN code must be 6 digits' }) }), 'params'), account.pincodeInfo);
 
+// State, district and taluka come from the PIN code
 const address = {
   type: Joi.string().valid('Home', 'Work', 'Other'),
   name: Joi.string().trim().max(80).allow(''),
   fullAddress: Joi.string().trim().min(5).max(300),
-  latitude: Joi.number().min(-90).max(90).allow(null),
-  longitude: Joi.number().min(-180).max(180).allow(null),
   city: Joi.string().trim().max(60).allow(''),
-  state: Joi.string().trim().max(60).allow(''),
-  zipCode: Joi.string().pattern(/^\d{6}$/).allow('').messages({ 'string.pattern.base': 'PIN code must be 6 digits' }),
+  zipCode: Joi.string().pattern(/^\d{6}$/).messages({ 'string.pattern.base': 'PIN code must be 6 digits', 'any.required': 'PIN code is required' }),
   phoneNumber: mobile().allow(''),
   isDefault: Joi.boolean(),
 };
 router.get('/addresses', account.listAddresses);
-router.post('/addresses', validate(Joi.object({ ...address, fullAddress: address.fullAddress.required(), type: address.type.default('Home') })), account.addAddress);
+router.post('/addresses', validate(Joi.object({ ...address, fullAddress: address.fullAddress.required(), zipCode: address.zipCode.required(), type: address.type.default('Home') })), account.addAddress);
 router.put('/addresses/:addressId', validate(Joi.object(address).min(1)), account.updateAddress);
 router.delete('/addresses/:addressId', account.deleteAddress);
 router.post('/addresses/:addressId/set-default', account.setDefaultAddress);
@@ -70,8 +68,8 @@ router.delete('/wishlist/:productId', catalog.removeWishlist);
 
 // Cart
 router.get('/cart', shop.getCart);
-router.post('/cart/add-item', validate(Joi.object({ productId: objectId().required(), quantity: Joi.number().integer().min(1).max(100).default(1) })), shop.addItem);
-router.put('/cart/update-item', validate(Joi.object({ productId: objectId().required(), quantity: Joi.number().integer().min(0).max(100).required() })), shop.updateItem);
+router.post('/cart/add-item', validate(Joi.object({ productId: objectId().required(), variantId: objectId().allow(null), quantity: Joi.number().integer().min(1).max(100).default(1) })), shop.addItem);
+router.put('/cart/update-item', validate(Joi.object({ productId: objectId().required(), variantId: objectId().allow(null), quantity: Joi.number().integer().min(0).max(100).required() })), shop.updateItem);
 router.delete('/cart/remove-item/:productId', shop.removeItem);
 router.post('/cart/clear', shop.clearCart);
 
@@ -82,6 +80,7 @@ router.post(
     deliveryType: Joi.string().valid('Delivery', 'Pickup').default('Delivery'),
     deliveryAddressId: objectId(),
     addressId: objectId(),
+    billingAddressId: objectId(),
     paymentMethod: Joi.string().valid('Online', 'Cash').required(),
     notes: Joi.string().allow('').max(500),
   })),

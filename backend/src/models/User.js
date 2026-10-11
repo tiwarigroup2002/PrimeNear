@@ -6,9 +6,10 @@ const addressSchema = new mongoose.Schema(
     type: { type: String, enum: ['Home', 'Work', 'Other'], default: 'Home' },
     name: String,
     fullAddress: { type: String, required: true },
-    latitude: Number,
-    longitude: Number,
     city: String,
+    // Filled from the PIN code (India location directory)
+    taluka: String,
+    district: String,
     state: String,
     zipCode: String,
     phoneNumber: String,
@@ -28,7 +29,7 @@ const userSchema = new mongoose.Schema(
     name: { type: String, trim: true },
     email: { type: String, lowercase: true, trim: true },
     profileImage: String,
-    lastLocation: { latitude: Number, longitude: Number, updatedAt: Date },
+    // Taluka of the default address PIN code (for reports)
     tahsilId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tahsil' },
     currentActiveSellerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Seller' },
     addresses: [addressSchema],

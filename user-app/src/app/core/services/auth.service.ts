@@ -20,11 +20,6 @@ export class AuthService {
   readonly activeSellerId = signal<string | null>(this.user()?.currentActiveSellerId ?? null);
   readonly activeShop = computed<Shop | null>(() => this.shops().find((s) => s._id === this.activeSellerId()) ?? this.shops()[0] ?? null);
   readonly isLoggedIn = computed(() => !!this.user() && !!this.token);
-  readonly locationTick = signal(0);
-
-  noteLocation() {
-    this.locationTick.update((n) => n + 1);
-  }
 
   get token() {
     return localStorage.getItem(TOKEN);

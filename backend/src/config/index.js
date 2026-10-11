@@ -50,6 +50,15 @@ module.exports = {
     // Fixed OTP for local testing only (ignored in production)
     fixedCode: env !== 'production' ? process.env.DEV_FIXED_OTP || '' : '',
   },
+  // India state / district / taluka / PIN directory (free data, downloaded once and cached in storage/)
+  indiaLocations: {
+    sourceUrl: process.env.INDIA_LOCATIONS_URL || 'https://raw.githubusercontent.com/saravanakumargn/All-India-Pincode-Directory/master/all-india-pincode-html-csv.csv',
+    // Optional local CSV with the same columns (used by tests / offline installs)
+    sourceFile: process.env.INDIA_LOCATIONS_FILE || '',
+    cacheFile: require('path').join(__dirname, '..', '..', 'storage', 'india-locations.json'),
+    // Free India Post API for PIN codes missing from the directory
+    pincodeApi: process.env.PINCODE_API_URL || 'https://api.postalpincode.in/pincode/',
+  },
   uploadDir: require('path').join(__dirname, '..', '..', 'uploads'),
   // Generated reports are private and only served through an authenticated endpoint
   reportDir: require('path').join(__dirname, '..', '..', 'storage', 'reports'),

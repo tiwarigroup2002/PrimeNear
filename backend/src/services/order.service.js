@@ -1,34 +1,14 @@
 const ApiError = require('../utils/ApiError');
-const { Product, StockMovement } = require('../models');
+const { putBackStock } = require('./stock.service');
 const { ORDER_STATUS } = require('../models/constants');
 const { refundOrder } = require('./refund.service');
 const { notifyUser, notifySeller } = require('./notification.service');
 
 const OPEN_STATUSES = ['Pending', 'Confirmed', 'Packed', 'Shipped'];
 
-/** Puts the items of an order back into stock and logs stock movements. */
+/** Puts the items of an order back into stock (variant aware) and logs stock movements. */
 async function restock(order, reason, actor) {
-  for (const item of order.items) {
-    if (!item.productId) continue;
-    const product = await Product.findByIdAndUpdate(
-      item.productId,
-      { $inc: { stock: item.quantity, soldCount: -item.quantity } },
-      { returnDocument: 'after' }
-    );
-    if (product) {
-      await StockMovement.create({
-        sellerId: order.sellerId,
-        productId: product._id,
-        change: item.quantity,
-        balanceAfter: product.stock,
-        reason,
-        refType: 'Order',
-        refId: order._id,
-        byType: actor.byType,
-        by: actor.by,
-      });
-    }
-  }
+  await putBackStock(order.sellerId, order.items, { reason, refType: 'Order', refId: order._id, byType: actor.byType, by: actor.by });
 }
 
 function pushHistory(order, status, actor, note) {

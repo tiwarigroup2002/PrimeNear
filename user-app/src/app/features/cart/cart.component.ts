@@ -27,18 +27,19 @@ import { InrPipe, PageHeaderComponent, StateComponent } from '../../shared';
         <div class="row g-3">
           <div class="col-lg-8">
             <div class="card">
-              @for (l of c.items; track l.productId) {
+              @for (l of c.items; track l.productId + (l.variantId || "")) {
                 <div class="cart-line" [class.opacity-75]="l.problem">
                   <a [routerLink]="['/product', l.productId]">@if (l.image) { <img [src]="l.image" class="thumb" alt="" /> } @else { <span class="thumb"><i class="bi bi-image"></i></span> }</a>
                   <div class="flex-grow-1 min-w-0">
                     <a [routerLink]="['/product', l.productId]" class="text-body text-decoration-none fw-semibold line-clamp-2">{{ l.name }}</a>
+                    @if (l.variantLabel) { <span class="variant-tag">{{ l.variantLabel }}</span> }
                     <div class="small"><strong>{{ l.finalPrice | inr }}</strong>@if (l.mrp && l.mrp > l.finalPrice) { <s class="text-muted ms-1">{{ l.mrp | inr: 0 }}</s> } <span class="text-muted">incl. {{ l.gstRate }}% GST</span></div>
                     @if (l.problem) { <div class="small text-danger fw-semibold"><i class="bi bi-exclamation-triangle me-1"></i>{{ l.problem }}</div> }
                     <div class="d-flex align-items-center justify-content-between mt-2">
                       <div class="qty-stepper">
-                        <button (click)="qty(l, l.quantity - 1)" [disabled]="busy() === l.productId" aria-label="Decrease"><i class="bi" [class.bi-dash-lg]="l.quantity > 1" [class.bi-trash]="l.quantity === 1"></i></button>
+                        <button (click)="qty(l, l.quantity - 1)" [disabled]="busy() === key(l)" aria-label="Decrease"><i class="bi" [class.bi-dash-lg]="l.quantity > 1" [class.bi-trash]="l.quantity === 1"></i></button>
                         <span>{{ l.quantity }}</span>
-                        <button (click)="qty(l, l.quantity + 1)" [disabled]="busy() === l.productId || l.quantity >= l.stock" aria-label="Increase"><i class="bi bi-plus-lg"></i></button>
+                        <button (click)="qty(l, l.quantity + 1)" [disabled]="busy() === key(l) || l.quantity >= l.stock" aria-label="Increase"><i class="bi bi-plus-lg"></i></button>
                       </div>
                       <strong>{{ l.lineTotal | inr }}</strong>
                     </div>
@@ -89,9 +90,13 @@ export class CartComponent implements OnInit {
     });
   }
 
+  key(l: CartLine) {
+    return l.productId + (l.variantId || '');
+  }
+
   qty(l: CartLine, q: number) {
-    this.busy.set(l.productId);
-    const req = q <= 0 ? this.cart.remove(l.productId) : this.cart.update(l.productId, q);
+    this.busy.set(this.key(l));
+    const req = q <= 0 ? this.cart.remove(l.productId, l.variantId) : this.cart.update(l.productId, q, l.variantId);
     req.subscribe({
       next: (c) => { this.busy.set(null); this.c.set(c); },
       error: (e) => { this.busy.set(null); this.toast.error(errorMessage(e)); },

@@ -8,9 +8,13 @@ const invoiceSchema = new mongoose.Schema(
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
     customerSnapshot: { name: String, mobileNumber: String },
+    // Bill-to address (online orders)
+    billingAddress: { name: String, fullAddress: String, city: String, taluka: String, district: String, state: String, zipCode: String, phoneNumber: String },
     items: [
       {
         productId: mongoose.Schema.Types.ObjectId,
+        variantId: mongoose.Schema.Types.ObjectId,
+        variantLabel: String,
         productName: String,
         quantity: Number,
         price: Number,

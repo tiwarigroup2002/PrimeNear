@@ -14,23 +14,27 @@ const {
   Product, Order, Payment, Dispute, Review,
 } = require('../models');
 
+// Same names and PIN codes as the India location directory (so the seed works offline)
 const LOCATIONS = [
   {
     name: 'Indore',
+    state: 'Madhya Pradesh',
     tahsils: [
-      { name: 'Rajwada', latitude: 22.7196, longitude: 75.8577, radius: 5, pincodes: ['452002', '452004', '452007'] },
-      { name: 'Mhow', latitude: 22.5514, longitude: 75.7297, radius: 5, pincodes: ['453441'] },
-      { name: 'Dhar Road', latitude: 22.65, longitude: 75.85, radius: 5, pincodes: ['452003'] },
+      { name: 'Indore', pincodes: ['452001', '452002', '452003', '452005', '452006', '452007', '452009', '452010', '452011', '452012', '452013', '452014', '452015', '452016', '452018', '452020', '453332', '453556', '453771'] },
+      { name: 'Mhow', pincodes: ['453331', '453441', '453446', '453661'] },
+      { name: 'Sanwer', pincodes: ['453551', '453555'] },
+      { name: 'Depalpur', pincodes: ['453001', '453111', '453112', '453115', '453220'] },
     ],
   },
   {
     name: 'Dewas',
+    state: 'Madhya Pradesh',
     tahsils: [
-      { name: 'Dewas City', latitude: 22.9689, longitude: 76.0534, radius: 5, pincodes: ['455001'] },
-      { name: 'Sonkatch', latitude: 22.9747, longitude: 76.3497, radius: 5, pincodes: ['455118'] },
+      { name: 'Dewas', pincodes: ['455001', '455111', '455227'] },
+      { name: 'Sonkutch', pincodes: ['455116', '455118'] },
     ],
   },
-  { name: 'Ujjain', tahsils: [{ name: 'Ujjain City', latitude: 23.1815, longitude: 75.7734, radius: 6, pincodes: ['456001', '456010'] }] },
+  { name: 'Ujjain', state: 'Madhya Pradesh', tahsils: [{ name: 'Ujjain', pincodes: ['456001', '456003', '456006', '456010'] }] },
 ];
 
 const CATEGORIES = [
@@ -52,7 +56,7 @@ async function seedBase() {
   }
 
   for (const d of LOCATIONS) {
-    const district = await District.findOneAndUpdate({ name: d.name }, { $setOnInsert: { name: d.name } }, { upsert: true, returnDocument: 'after' });
+    const district = await District.findOneAndUpdate({ name: d.name, state: d.state }, { $setOnInsert: { name: d.name, state: d.state } }, { upsert: true, returnDocument: 'after' });
     for (const t of d.tahsils) {
       const { pincodes = [], ...fields } = t;
       await Tahsil.findOneAndUpdate({ districtId: district._id, name: t.name }, { $setOnInsert: { ...fields, districtId: district._id }, $addToSet: { pincodes: { $each: pincodes } } }, { upsert: true });
@@ -77,18 +81,22 @@ async function seedDemo(admin) {
     logger.info('Demo data already present, skipping');
     return;
   }
-  const rajwada = await Tahsil.findOne({ name: 'Rajwada' });
-  const mhow = await Tahsil.findOne({ name: 'Mhow' });
-  const dewas = await Tahsil.findOne({ name: 'Dewas City' });
-  const indore = await District.findOne({ name: 'Indore' });
-  const dewasD = await District.findOne({ name: 'Dewas' });
+  const indore = await District.findOne({ name: 'Indore', state: 'Madhya Pradesh' });
+  const dewasD = await District.findOne({ name: 'Dewas', state: 'Madhya Pradesh' });
+  const rajwada = await Tahsil.findOne({ name: 'Indore', districtId: indore._id }); // shop PIN 452002 is in Indore taluka
+  const mhow = await Tahsil.findOne({ name: 'Mhow', districtId: indore._id });
+  const dewas = await Tahsil.findOne({ name: 'Dewas', districtId: dewasD._id });
+  const indoreAll = await Tahsil.distinct('_id', { districtId: indore._id });
+  const dewasAll = await Tahsil.distinct('_id', { districtId: dewasD._id });
 
+  // Selling area: Bhagwati Shoes sells in all talukas of Indore + Dewas, RAM STORE in Mhow and Indore talukas,
+  // ALI GARMENTS only in Dewas taluka, Bhagwati Kirana only in its own taluka
   const sellers = await Seller.create([
-    { shopName: 'Bhagwati Shoes Shop', ownerName: 'Bhagwati Prasad', mobileNumber: '9876543210', tahsilId: rajwada._id, districtIds: [indore._id, dewasD._id], shopAddress: '12, Rajwada Chowk, Indore', pincode: '452002', settings: { enableDelivery: true, deliveryCharge: 30, freeDeliveryAbove: 1000, allowCashOnDelivery: true }, gstNumber: '23AABCT0123A1Z0', bankDetails: { accountHolder: 'Bhagwati Prasad', accountNumber: '123456789012', ifscCode: 'SBIN0001234', bankName: 'State Bank of India' }, commissionRate: 5, createdBy: admin._id, rating: 4.6, ratingCount: 25 },
-    { shopName: 'RAM STORE', ownerName: 'Ram Verma', mobileNumber: '9876543211', tahsilId: mhow._id, districtIds: [indore._id], shopAddress: 'Main Road, Mhow', pincode: '453441', bankDetails: { accountHolder: 'Ram Verma', accountNumber: '998877665544', ifscCode: 'HDFC0004321', bankName: 'HDFC Bank' }, createdBy: admin._id, rating: 4.2, ratingCount: 12 },
-    { shopName: 'ALI GARMENTS', ownerName: 'Ali Khan', mobileNumber: '9876543212', tahsilId: dewas._id, districtIds: [dewasD._id], shopAddress: 'MG Road, Dewas', pincode: '455001', upiId: 'aligarments@upi', commissionRate: 4, createdBy: admin._id, rating: 4.8, ratingCount: 18 },
+    { shopName: 'Bhagwati Shoes Shop', ownerName: 'Bhagwati Prasad', mobileNumber: '9876543210', tahsilId: rajwada._id, serviceTahsilIds: [...indoreAll, ...dewasAll], districtIds: [indore._id, dewasD._id], shopAddress: '12, Rajwada Chowk, Indore', pincode: '452002', settings: { enableDelivery: true, deliveryCharge: 30, freeDeliveryAbove: 1000, allowCashOnDelivery: true }, gstNumber: '23AABCT0123A1Z0', bankDetails: { accountHolder: 'Bhagwati Prasad', accountNumber: '123456789012', ifscCode: 'SBIN0001234', bankName: 'State Bank of India' }, commissionRate: 5, customerLimit: 200, createdBy: admin._id, rating: 4.6, ratingCount: 25 },
+    { shopName: 'RAM STORE', ownerName: 'Ram Verma', mobileNumber: '9876543211', tahsilId: mhow._id, serviceTahsilIds: [mhow._id, rajwada._id], districtIds: [indore._id], shopAddress: 'Main Road, Mhow', pincode: '453441', bankDetails: { accountHolder: 'Ram Verma', accountNumber: '998877665544', ifscCode: 'HDFC0004321', bankName: 'HDFC Bank' }, customerLimit: 100, createdBy: admin._id, rating: 4.2, ratingCount: 12 },
+    { shopName: 'ALI GARMENTS', ownerName: 'Ali Khan', mobileNumber: '9876543212', tahsilId: dewas._id, serviceTahsilIds: [dewas._id], districtIds: [dewasD._id], shopAddress: 'MG Road, Dewas', pincode: '455001', upiId: 'aligarments@upi', commissionRate: 4, customerLimit: 100, createdBy: admin._id, rating: 4.8, ratingCount: 18 },
     // Same owner mobile as Bhagwati -> multi-shop owner
-    { shopName: 'Bhagwati Kirana', ownerName: 'Bhagwati Prasad', mobileNumber: '9876543210', tahsilId: rajwada._id, districtIds: [indore._id], shopAddress: '14, Rajwada Chowk, Indore', pincode: '452002', createdBy: admin._id },
+    { shopName: 'Bhagwati Kirana', ownerName: 'Bhagwati Prasad', mobileNumber: '9876543210', tahsilId: rajwada._id, serviceTahsilIds: [rajwada._id], districtIds: [indore._id], shopAddress: '14, Rajwada Chowk, Indore', pincode: '452002', customerLimit: 50, createdBy: admin._id },
   ]);
 
   const cats = Object.fromEntries((await Category.find()).map((c) => [c.name, c]));
@@ -115,6 +123,16 @@ async function seedDemo(admin) {
     }));
   }
 
+  // A product with colour / size variants (each combination has its own price and stock)
+  const variantRows = [];
+  for (const [color, extra] of [['Black', 0], ['Brown', 100]]) {
+    for (const size of ['7', '8', '9']) variantRows.push({ color, size, sellingPrice: 1199 + extra, mrp: 1499 + extra, stock: size === '9' && color === 'Brown' ? 0 : randInt(2, 8), sku: `BHAG-LOAF-${color.slice(0, 2).toUpperCase()}${size}` });
+  }
+  products.push(await Product.create({
+    sellerId: sellers[0]._id, name: 'Leather Loafers', categoryId: cats.Footwear._id, subCategoryId: sub('Formal Shoes'), costPrice: 800, sellingPrice: 1199, gstRate: 18,
+    sku: 'BHAG-LOAF', description: 'Genuine leather loafers. Choose your colour and size.', variants: variantRows, rating: 4.4, ratingCount: 7,
+  }));
+
   const names = ['Raj Kumar', 'Priya Singh', 'Amit Sharma', 'Neha Patel', 'Suresh Yadav', 'Pooja Jain', 'Vikas Gupta', 'Anita Verma', 'Rohit Mehta', 'Kavita Rathore', 'Deepak Chouhan', 'Sunita Tiwari'];
   const tahsils = [rajwada, mhow, dewas];
   const users = [];
@@ -123,7 +141,7 @@ async function seedDemo(admin) {
     users.push(await User.create({
       mobileNumber: `98270${String(10000 + i).slice(-5)}`, name, email: `${name.split(' ')[0].toLowerCase()}@example.com`,
       tahsilId: tahsils[i % 3]._id, createdAt, lastLogin: new Date(),
-      addresses: [{ type: 'Home', name, fullAddress: `${i + 1}, Sample Nagar`, city: i % 3 === 2 ? 'Dewas' : 'Indore', state: 'Madhya Pradesh', zipCode: ['452002', '453441', '455001'][i % 3], phoneNumber: `98270${String(10000 + i).slice(-5)}`, isDefault: true }],
+      addresses: [{ type: 'Home', name, fullAddress: `${i + 1}, Sample Nagar`, city: ['Indore', 'Mhow', 'Dewas'][i % 3], taluka: ['Indore', 'Mhow', 'Dewas'][i % 3], district: i % 3 === 2 ? 'Dewas' : 'Indore', state: 'Madhya Pradesh', zipCode: ['452002', '453441', '455001'][i % 3], phoneNumber: `98270${String(10000 + i).slice(-5)}`, isDefault: true }],
     }));
   }
   // Link users to sellers (some users linked to multiple shops)
@@ -142,7 +160,8 @@ async function seedDemo(admin) {
   let orderCount = 0;
   for (let n = 0; n < 90; n += 1) {
     const [user, seller] = rand(links);
-    const sellerProducts = products.filter((p) => String(p.sellerId) === String(seller._id));
+    // Simple products only: demo orders do not pick a colour / size
+    const sellerProducts = products.filter((p) => String(p.sellerId) === String(seller._id) && !p.variants?.length);
     if (!sellerProducts.length) continue;
     const createdAt = new Date(Date.now() - randInt(0, 59) * 86400000 - randInt(0, 12) * 3600000);
     const isPos = Math.random() < 0.2;
@@ -165,6 +184,8 @@ async function seedDemo(admin) {
     const deliveredAt = orderStatus === 'Delivered' ? new Date(createdAt.getTime() + randInt(1, 3) * 86400000) : undefined;
     const flow = ['Pending', 'Confirmed', 'Packed', 'Shipped', 'Delivered'];
     const history = orderStatus === 'Cancelled' ? ['Pending', 'Cancelled'] : flow.slice(0, flow.indexOf(orderStatus) + 1);
+    const a = user.addresses[0];
+    const addr = { name: user.name, fullAddress: a.fullAddress, city: a.city, taluka: a.taluka, district: a.district, state: a.state, zipCode: a.zipCode, phoneNumber: user.mobileNumber };
 
     const order = await Order.create({
       orderId: await generateId('ORD', createdAt),
@@ -173,7 +194,8 @@ async function seedDemo(admin) {
       userId: user._id,
       customerSnapshot: { name: user.name, mobileNumber: user.mobileNumber },
       items,
-      deliveryAddress: isPos ? undefined : { name: user.name, fullAddress: user.addresses[0].fullAddress, city: user.addresses[0].city, state: 'Madhya Pradesh', phoneNumber: user.mobileNumber },
+      deliveryAddress: isPos ? undefined : addr,
+      billingAddress: isPos ? undefined : addr,
       subtotal, gstAmount, finalAmount,
       paymentMethod, paymentStatus, orderStatus,
       razorpayPaymentId: paymentMethod === 'Online' ? `pay_demo${n}${Date.now()}` : undefined,

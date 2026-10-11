@@ -19,11 +19,11 @@ export interface Address {
   name?: string;
   fullAddress: string;
   city?: string;
+  taluka?: string;
+  district?: string;
   state?: string;
   zipCode?: string;
   phoneNumber?: string;
-  latitude?: number;
-  longitude?: number;
   isDefault: boolean;
 }
 
@@ -39,7 +39,6 @@ export interface User {
   preferences: { language: string; theme: string; pushNotifications: boolean; emailNotifications: boolean; smsNotifications: boolean; whatsappNotifications: boolean };
   currentActiveSellerId?: string;
   tahsilId?: any;
-  lastLocation?: { latitude: number; longitude: number };
 }
 
 export interface Shop {
@@ -82,10 +81,32 @@ export interface Product {
   discountPercent: number;
   available?: boolean;
   inCart?: number;
+  // Colour / size combinations (only active ones are sent)
+  hasVariants?: boolean;
+  colors?: string[];
+  sizes?: string[];
+  variants?: Variant[];
+  inCartByVariant?: Record<string, number>;
+}
+
+export interface Variant {
+  _id: string;
+  color: string;
+  size: string;
+  label: string;
+  sellingPrice: number;
+  mrp?: number;
+  gstAmount: number;
+  finalPrice: number;
+  stock: number;
+  images: string[];
+  isActive: boolean;
 }
 
 export interface CartLine {
   productId: string;
+  variantId?: string | null;
+  variantLabel?: string;
   name: string;
   image?: string;
   quantity: number;

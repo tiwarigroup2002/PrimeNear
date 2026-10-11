@@ -144,4 +144,9 @@ async function sellerEarnings(req, res) {
   return ok(res, await payoutService.sellerEarnings(req.params.sellerId, req.query));
 }
 
-module.exports = { listPayments, dashboard, listPayouts, pendingPayouts, initiate, getPayout, updatePayoutStatus, retry, sellerEarnings };
+/** GET /payouts/on-hold - paid online orders still inside the holding period, per seller */
+async function onHoldPayouts(_req, res) {
+  return ok(res, await payoutService.onHoldBySeller());
+}
+
+module.exports = { listPayments, dashboard, listPayouts, pendingPayouts, onHoldPayouts, initiate, getPayout, updatePayoutStatus, retry, sellerEarnings };

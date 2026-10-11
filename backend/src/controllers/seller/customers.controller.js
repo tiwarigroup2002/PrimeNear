@@ -4,6 +4,7 @@ const { ok, created } = require('../../utils/respond');
 const { getPagination, paginated, searchRegex } = require('../../utils/pagination');
 const { Customer, User, Order } = require('../../models');
 const { REVENUE_MATCH, NET_AMOUNT, round2 } = require('../../services/metrics');
+const { assertCanAddCustomers, customerUsage } = require('../../services/customer-limit.service');
 
 const MOBILE_RX = /^[6-9]\d{9}$/;
 const normalise = (v) => {
@@ -26,6 +27,8 @@ async function findCustomer(req) {
 async function addCustomer(seller, { mobileNumber, name, email, address }) {
   let user = await User.findOne({ mobileNumber });
   if (user?.status === 'Blocked') throw ApiError.badRequest('This number is blocked on the platform. Contact support.');
+  if (user && (await Customer.exists({ sellerId: seller._id, userId: user._id }))) throw ApiError.conflict('This customer is already added to your shop');
+  await assertCanAddCustomers(seller);
   if (!user) user = await User.create({ mobileNumber, name: name || undefined, email: email || undefined });
   else if (user.status === 'Deleted') {
     user.status = 'Active';
@@ -48,8 +51,9 @@ async function list(req, res) {
   }
   if (req.query.customerType) filter.customerType = req.query.customerType;
   const sort = { spent: { totalSpent: -1 }, recent: { lastPurchaseDate: -1 }, name: { name: 1 } }[req.query.sortBy] || { createdAt: -1 };
-  const [items, total] = await Promise.all([Customer.find(filter).sort(sort).skip(p.skip).limit(p.limit), Customer.countDocuments(filter)]);
-  return ok(res, paginated(items, total, p));
+  const [items, total, usage] = await Promise.all([Customer.find(filter).sort(sort).skip(p.skip).limit(p.limit), Customer.countDocuments(filter), customerUsage(req.seller)]);
+  // customerLimit / customerCount: how many customers the admin allows and how many are added
+  return ok(res, paginated(items, total, p, { customerCount: usage.used, customerLimit: usage.limit, customersLeft: usage.remaining }));
 }
 
 /** GET /customers/search?q= - quick picker for billing */

@@ -3,6 +3,8 @@ const { ok, created } = require('../../utils/respond');
 const { escapeRegex } = require('../../utils/pagination');
 const { District, Tahsil, Seller, User } = require('../../models');
 const { audit } = require('../../services/audit.service');
+const directory = require('../../services/india-locations.service');
+const { importTalukas } = require('../../services/locations.service');
 
 const ciExact = (name) => new RegExp(`^${escapeRegex(name.trim())}$`, 'i');
 
@@ -35,11 +37,8 @@ async function listDistricts(req, res) {
 }
 
 async function createDistrict(req, res) {
-  if (await District.exists({ name: ciExact(req.body.name) })) throw ApiError.conflict('District already exists');
+  if (await District.exists({ name: ciExact(req.body.name), state: ciExact(req.body.state) })) throw ApiError.conflict('District already exists in this state');
   const { tahsils = [], ...body } = req.body;
-  const pins = tahsils.flatMap((t) => t.pincodes || []);
-  if (new Set(pins).size !== pins.length) throw ApiError.badRequest('The same PIN code is added to two tahsils');
-  await assertPincodesFree(pins);
   const district = await District.create(body);
   const createdTahsils = tahsils.length ? await Tahsil.insertMany(tahsils.map((t) => ({ ...t, districtId: district._id }))) : [];
   await audit(req, { action: 'Created', entityType: 'District', entityId: district._id, newValue: { ...district.toJSON(), tahsils: createdTahsils.length } });
@@ -49,7 +48,7 @@ async function createDistrict(req, res) {
 async function updateDistrict(req, res) {
   const district = await District.findById(req.params.districtId);
   if (!district) throw ApiError.notFound('District not found');
-  if (req.body.name && (await District.exists({ name: ciExact(req.body.name), _id: { $ne: district._id } }))) throw ApiError.conflict('District already exists');
+  if (req.body.name && (await District.exists({ name: ciExact(req.body.name), state: ciExact(req.body.state || district.state), _id: { $ne: district._id } }))) throw ApiError.conflict('District already exists in this state');
   const before = district.toJSON();
   Object.assign(district, req.body);
   await district.save();
@@ -79,26 +78,52 @@ async function listTahsils(req, res) {
   return ok(res, tahsils.map((t) => ({ ...t.toJSON(), district: t.districtId?.name, sellerCount: sellers[String(t._id)] || 0, userCount: users[String(t._id)] || 0 })));
 }
 
-/** A PIN code can belong to one tahsil only, so a PIN always fills the right tahsil. */
-async function assertPincodesFree(pincodes, exceptTahsilId) {
-  if (!pincodes?.length) return;
-  const clash = await Tahsil.findOne({ pincodes: { $in: pincodes }, ...(exceptTahsilId ? { _id: { $ne: exceptTahsilId } } : {}) });
-  if (clash) {
-    const used = clash.pincodes.filter((p) => pincodes.includes(p));
-    throw ApiError.conflict(`PIN code ${used.join(', ')} is already added to tahsil ${clash.name}`);
-  }
+// ---- India directory (free data: state -> district -> taluka -> PIN codes) ----
+async function directoryStates(_req, res) {
+  return ok(res, await directory.states());
 }
 
-/** GET /locations/pincode/:pincode - tahsil (and district) for a PIN code */
+async function directoryDistricts(req, res) {
+  return ok(res, await directory.districts(req.validatedQuery.state));
+}
+
+/** Talukas of a district with PIN codes; `saved` tells which ones are already in Locations. */
+async function directoryTalukas(req, res) {
+  const { state, district } = req.validatedQuery;
+  const list = await directory.talukas(state, district);
+  const c = await directory.canonical(state, district);
+  const d = await District.findOne({ name: c.district, state: c.state });
+  const saved = d ? await Tahsil.find({ districtId: d._id }).select('name isActive') : [];
+  const savedMap = new Map(saved.map((t) => [t.name.toLowerCase(), t]));
+  return ok(res, list.map((t) => ({ ...t, savedId: savedMap.get(t.name.toLowerCase())?._id || null })));
+}
+
+/** GET /locations/pincode/:pincode - state, district and taluka for a PIN code (fills the seller form) */
 async function lookupPincode(req, res) {
-  const tahsil = await Tahsil.findOne({ pincodes: req.params.pincode }).populate('districtId', 'name');
-  if (!tahsil) throw ApiError.notFound(`No tahsil has PIN code ${req.params.pincode}. Add it in Locations first.`);
-  return ok(res, { tahsilId: tahsil._id, tahsilName: tahsil.name, districtId: tahsil.districtId?._id, districtName: tahsil.districtId?.name, isActive: tahsil.isActive });
+  const pin = req.params.pincode;
+  const matches = await directory.lookupPincode(pin);
+  const saved = await Tahsil.findOne({ pincodes: pin }).populate('districtId', 'name state');
+  const m = matches[0];
+  return ok(res, {
+    pincode: pin,
+    state: m.state,
+    district: m.district,
+    taluka: m.taluka,
+    matches,
+    tahsilId: saved?._id || null,
+    isActive: saved ? saved.isActive && saved.districtId?.isActive !== false : true,
+  });
+}
+
+/** POST /locations/import { state, district, talukas: 'all' | [names] } - adds them with their PIN codes */
+async function importFromDirectory(req, res) {
+  const { district, tahsils } = await importTalukas(req.body);
+  await audit(req, { action: 'Imported', entityType: 'District', entityId: district._id, newValue: { state: district.state, district: district.name, talukas: tahsils.map((t) => t.name) } });
+  return created(res, { district, tahsils }, `${tahsils.length} taluka(s) of ${district.name} added`);
 }
 
 async function createTahsil(req, res) {
   if (!(await District.exists({ _id: req.body.districtId }))) throw ApiError.badRequest('District not found');
-  await assertPincodesFree(req.body.pincodes);
   if (await Tahsil.exists({ districtId: req.body.districtId, name: ciExact(req.body.name) })) throw ApiError.conflict('Tahsil already exists in this district');
   const tahsil = await Tahsil.create(req.body);
   await audit(req, { action: 'Created', entityType: 'Tahsil', entityId: tahsil._id, newValue: tahsil });
@@ -111,7 +136,6 @@ async function updateTahsil(req, res) {
   const districtId = req.body.districtId || tahsil.districtId;
   if (req.body.districtId && !(await District.exists({ _id: districtId }))) throw ApiError.badRequest('District not found');
   if (req.body.name && (await Tahsil.exists({ districtId, name: ciExact(req.body.name), _id: { $ne: tahsil._id } }))) throw ApiError.conflict('Tahsil already exists in this district');
-  await assertPincodesFree(req.body.pincodes, tahsil._id);
   const before = tahsil.toJSON();
   Object.assign(tahsil, req.body);
   await tahsil.save();
@@ -130,4 +154,7 @@ async function deleteTahsil(req, res) {
   return ok(res, null, 'Tahsil deleted');
 }
 
-module.exports = { listDistricts, createDistrict, updateDistrict, deleteDistrict, listTahsils, createTahsil, updateTahsil, deleteTahsil, lookupPincode, assertPincodesFree };
+module.exports = {
+  listDistricts, createDistrict, updateDistrict, deleteDistrict, listTahsils, createTahsil, updateTahsil, deleteTahsil,
+  directoryStates, directoryDistricts, directoryTalukas, lookupPincode, importFromDirectory,
+};

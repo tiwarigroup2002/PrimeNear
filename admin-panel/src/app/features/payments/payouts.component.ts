@@ -22,7 +22,19 @@ export class PayoutsComponent implements OnInit {
   private confirm = inject(ConfirmService);
   auth = inject(AuthService);
 
-  tab = signal<'due' | 'history'>(inject(ActivatedRoute).snapshot.queryParamMap.get('status') ? 'history' : 'due');
+  tab = signal<'due' | 'hold' | 'history'>(inject(ActivatedRoute).snapshot.queryParamMap.get('status') ? 'history' : 'due');
+  /** Paid online orders still inside the holding period (not payable yet) */
+  hold = signal<any>(null);
+  holdLoading = signal(false);
+  openSeller = signal<string | null>(null);
+
+  loadHold() {
+    this.holdLoading.set(true);
+    this.api.get<any>('/payouts/on-hold').subscribe({
+      next: (d) => { this.hold.set(d); this.holdLoading.set(false); },
+      error: (e) => { this.toast.error(errorMessage(e)); this.holdLoading.set(false); },
+    });
+  }
   due = signal<any>(null);
   dueLoading = signal(false);
   selected = signal<Set<string>>(new Set());
@@ -37,6 +49,7 @@ export class PayoutsComponent implements OnInit {
 
   ngOnInit() {
     this.loadDue();
+    this.loadHold();
     this.list.load();
   }
 

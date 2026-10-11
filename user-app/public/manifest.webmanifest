@@ -1,0 +1,13 @@
+{
+  "name": "PrimeNear",
+  "short_name": "PrimeNear",
+  "description": "Shop from your trusted local stores",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fafbfd",
+  "theme_color": "#d70f64",
+  "icons": [
+    { "src": "logo-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

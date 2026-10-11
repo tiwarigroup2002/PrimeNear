@@ -16,7 +16,9 @@ async function ensureInvoice(order) {
     userId: order.userId,
     customerId: order.customerId,
     customerSnapshot: order.customerSnapshot,
-    items: order.items.map((i) => ({ productId: i.productId, productName: i.productName, quantity: i.quantity, price: i.price, gstRate: i.gstRate, gst: i.gst, subtotal: i.subtotal })),
+    billingAddress: order.billingAddress?.fullAddress ? order.billingAddress : undefined,
+    // The variant ("Red / M") is part of the printed item name
+    items: order.items.map((i) => ({ productId: i.productId, variantId: i.variantId, variantLabel: i.variantLabel, productName: i.variantLabel ? `${i.productName} (${i.variantLabel})` : i.productName, quantity: i.quantity, price: i.price, gstRate: i.gstRate, gst: i.gst, subtotal: i.subtotal })),
     subtotal: order.subtotal,
     totalGst: order.gstAmount,
     deliveryCharge: order.deliveryCharge,
@@ -70,6 +72,8 @@ function invoicePdf(invoice, seller, res) {
   const top = doc.y;
   doc.text(`Invoice: ${invoice.invoiceId}`, 40, top).text(`Date: ${fmtDate(invoice.invoiceDate)}`).text(`Payment: ${invoice.paymentMethod}`);
   doc.text(`Customer: ${invoice.customerSnapshot?.name || 'Walk-in customer'}`, 320, top).text(`Mobile: ${invoice.customerSnapshot?.mobileNumber || '-'}`, 320);
+  const b = invoice.billingAddress;
+  if (b?.fullAddress) doc.text(`Bill to: ${[b.fullAddress, b.taluka, b.district, b.state].filter(Boolean).join(', ')} - ${b.zipCode || ''}`, 320, doc.y, { width: 235 });
   doc.moveDown(1.2);
 
   const cols = [

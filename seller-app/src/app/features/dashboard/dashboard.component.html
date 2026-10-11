@@ -9,7 +9,7 @@
 <app-state [loading]="!d() && !error()" [error]="error()" />
 
 @if (d(); as d) {
-  <div class="card mb-3 border-0 text-white" style="background: linear-gradient(135deg, #059669, #0e7490)">
+  <div class="card mb-3 border-0 text-white" style="background: linear-gradient(135deg, #d70f64, #ff4f8b)">
     <div class="card-body">
       <div class="small opacity-75">Today's sales</div>
       <div class="display-6 fw-bold">{{ d.today.revenue | inr: 0 }}</div>

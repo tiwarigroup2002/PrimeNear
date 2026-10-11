@@ -4,6 +4,8 @@ const { ORDER_STATUS, PAYMENT_METHODS, PAYMENT_STATUS, ORDER_SOURCE } = require(
 const orderItemSchema = new mongoose.Schema(
   {
     productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+    variantId: mongoose.Schema.Types.ObjectId, // colour / size variant, when the product has variants
+    variantLabel: String, // e.g. "Red / M"
     productName: String,
     image: String,
     quantity: { type: Number, required: true, min: 1 },
@@ -14,6 +16,17 @@ const orderItemSchema = new mongoose.Schema(
   },
   { _id: false }
 );
+
+const addressFields = () => ({
+  name: String,
+  fullAddress: String,
+  city: String,
+  taluka: String,
+  district: String,
+  state: String,
+  zipCode: String,
+  phoneNumber: String,
+});
 
 const actorFields = {
   byType: { type: String, enum: ['User', 'Seller', 'Admin', 'System'] },
@@ -38,16 +51,9 @@ const orderSchema = new mongoose.Schema(
     deliveryType: { type: String, enum: ['Delivery', 'Pickup'], default: 'Delivery' },
     // Online orders wait for payment until this time, then they are cancelled automatically
     paymentExpiresAt: Date,
-    deliveryAddress: {
-      name: String,
-      fullAddress: String,
-      city: String,
-      state: String,
-      zipCode: String,
-      phoneNumber: String,
-      latitude: Number,
-      longitude: Number,
-    },
+    deliveryAddress: addressFields(),
+    // Address printed on the invoice (same as delivery unless the customer picks another one)
+    billingAddress: addressFields(),
     subtotal: { type: Number, default: 0 }, // sum of price * qty (before GST)
     gstAmount: { type: Number, default: 0 },
     deliveryCharge: { type: Number, default: 0 },

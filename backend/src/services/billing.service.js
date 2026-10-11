@@ -10,16 +10,21 @@ const { round2 } = require('./metrics');
 /**
  * Creates a counter bill (POS) for a seller: a delivered + paid order, its payment,
  * the invoice and stock movements.
- * items: [{ productId, quantity }]; customerId optional (walk-in customer otherwise).
+ * items: [{ productId, variantId?, quantity }]; customerId optional (walk-in customer otherwise).
  */
 async function createBill(seller, { customerId, walkInName, walkInMobile, items, paymentMethod, discount = 0, deliveryCharge = 0, notes }) {
   if (!items?.length) throw ApiError.badRequest('Add at least one product');
+  // Same product + same colour/size on two lines -> one line
   const merged = new Map();
-  items.forEach((i) => merged.set(String(i.productId), (merged.get(String(i.productId)) || 0) + Number(i.quantity)));
+  items.forEach((i) => {
+    const key = `${i.productId}:${i.variantId || ''}`;
+    const prev = merged.get(key);
+    merged.set(key, { productId: String(i.productId), variantId: i.variantId || null, quantity: (prev?.quantity || 0) + Number(i.quantity) });
+  });
 
-  const ids = [...merged.keys()].filter((id) => mongoose.isValidObjectId(id));
+  const ids = [...new Set([...merged.values()].map((m) => m.productId))].filter((id) => mongoose.isValidObjectId(id));
   const products = await Product.find({ _id: { $in: ids }, sellerId: seller._id, isDeleted: false });
-  if (products.length !== merged.size) throw ApiError.badRequest('Some products were not found in your shop');
+  if (products.length !== ids.length) throw ApiError.badRequest('Some products were not found in your shop');
   const inactive = products.find((p) => !p.isActive);
   if (inactive) throw ApiError.badRequest(`"${inactive.name}" is inactive`);
 
@@ -29,10 +34,13 @@ async function createBill(seller, { customerId, walkInName, walkInMobile, items,
     if (!customer) throw ApiError.badRequest('Customer not found');
   }
 
-  const lines = products.map((p) => {
-    const quantity = merged.get(String(p._id));
-    const gst = round2(p.gstAmount * quantity);
-    return { productId: p._id, productName: p.name, image: p.images?.[0], quantity, price: p.sellingPrice, gstRate: p.gstRate, gst, subtotal: round2(p.finalPrice * quantity) };
+  const lines = [...merged.values()].map(({ productId, variantId, quantity }) => {
+    const p = products.find((x) => String(x._id) === productId);
+    if (p.variants?.length && !variantId) throw ApiError.badRequest(`Choose a colour / size for "${p.name}"`);
+    const u = p.unit(variantId);
+    if (!u || !u.isActive) throw ApiError.badRequest(`That colour / size of "${p.name}" is not available`);
+    const gst = round2(u.gstAmount * quantity);
+    return { productId: p._id, variantId: u.variantId || undefined, variantLabel: u.variantLabel || undefined, productName: p.name, image: u.image, quantity, price: u.sellingPrice, gstRate: p.gstRate, gst, subtotal: round2(u.finalPrice * quantity) };
   });
   const subtotal = round2(lines.reduce((s, l) => s + l.price * l.quantity, 0));
   const gstAmount = round2(lines.reduce((s, l) => s + l.gst, 0));
@@ -49,7 +57,7 @@ async function createBill(seller, { customerId, walkInName, walkInMobile, items,
   // Reserve stock first; nothing else is written if stock is short
   await takeStock(
     seller._id,
-    lines.map((l) => ({ product: products.find((p) => String(p._id) === String(l.productId)), quantity: l.quantity })),
+    lines.map((l) => ({ product: products.find((p) => String(p._id) === String(l.productId)), quantity: l.quantity, variantId: l.variantId })),
     { reason: 'CashBill', refType: 'Order', refId: orderObjectId, by: seller._id }
   );
 

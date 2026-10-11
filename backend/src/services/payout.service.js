@@ -97,6 +97,50 @@ async function onHoldAmount(sellerId) {
   return round2(row?.amount);
 }
 
+/**
+ * Paid online orders whose money is still with the platform and not yet payable:
+ * not delivered yet, or delivered within the holding period. Grouped by seller with
+ * the date each order becomes payable (delivery date + payoutDelayDays).
+ */
+async function onHoldBySeller() {
+  const settings = await getSettings();
+  const days = settings.commissionSettings.payoutDelayDays;
+  const cutoff = addDays(new Date(), -days);
+  const orders = await Order.find({
+    settlementStatus: 'Unsettled',
+    ...REVENUE_MATCH,
+    ...PLATFORM_COLLECTED,
+    $or: [{ orderStatus: { $ne: 'Delivered' } }, { deliveredAt: { $gt: cutoff } }],
+  })
+    .sort({ deliveredAt: 1, createdAt: 1 })
+    .select('orderId sellerId finalAmount refundedAmount commissionRate orderStatus deliveredAt createdAt')
+    .lean();
+  const sellers = await Seller.find({ _id: { $in: [...new Set(orders.map((o) => String(o.sellerId)))] } }).select('shopName ownerName mobileNumber');
+  const byId = Object.fromEntries(sellers.map((s) => [String(s._id), s]));
+  const groups = new Map();
+  for (const o of orders) {
+    const key = String(o.sellerId);
+    if (!groups.has(key)) {
+      const s = byId[key];
+      groups.set(key, { sellerId: o.sellerId, seller: s ? { _id: s._id, shopName: s.shopName, ownerName: s.ownerName, mobileNumber: s.mobileNumber } : null, amount: 0, deliveredCount: 0, notDeliveredCount: 0, nextPayableOn: null, orders: [] });
+    }
+    const g = groups.get(key);
+    const net = round2(o.finalAmount - (o.refundedAmount || 0));
+    const amount = round2(net - (net * (o.commissionRate || 0)) / 100);
+    const payableOn = o.orderStatus === 'Delivered' && o.deliveredAt ? addDays(o.deliveredAt, days) : null;
+    g.amount = round2(g.amount + amount);
+    if (payableOn) {
+      g.deliveredCount += 1;
+      if (!g.nextPayableOn || payableOn < g.nextPayableOn) g.nextPayableOn = payableOn;
+    } else {
+      g.notDeliveredCount += 1;
+    }
+    g.orders.push({ _id: o._id, orderId: o.orderId, orderStatus: o.orderStatus, amount, deliveredAt: o.deliveredAt || null, payableOn, createdAt: o.createdAt });
+  }
+  const rows = [...groups.values()].sort((a, b) => b.amount - a.amount);
+  return { payoutDelayDays: days, totalAmount: round2(rows.reduce((s, r) => s + r.amount, 0)), sellers: rows };
+}
+
 /** Creates one payout per seller for everything currently due. */
 async function initiatePayouts({ sellerIds, payoutDate, notes, adminId }) {
   const due = await pendingBySeller(sellerIds && sellerIds.length ? sellerIds : null);
@@ -228,4 +272,4 @@ async function sellerEarnings(sellerId, { from, to } = {}) {
   };
 }
 
-module.exports = { PLATFORM_COLLECTED, pendingBySeller, onHoldAmount, initiatePayouts, updatePayoutStatus, retryPayout, sellerEarnings, COMMISSION };
+module.exports = { PLATFORM_COLLECTED, pendingBySeller, onHoldAmount, onHoldBySeller, initiatePayouts, updatePayoutStatus, retryPayout, sellerEarnings, COMMISSION };
