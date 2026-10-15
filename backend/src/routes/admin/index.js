@@ -19,5 +19,6 @@ router.use('/settings', require('./settings.routes'));
 router.use('/', require('./catalog.routes'));
 router.use('/', require('./analytics.routes'));
 router.use('/', require('./logs.routes'));
+router.use('/', require('./billing.routes'));
 
 module.exports = router;

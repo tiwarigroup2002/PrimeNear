@@ -26,6 +26,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
       { label: 'Payments', icon: 'bi-wallet2', link: '/payments', permissions: ['payments.view'] },
       { label: 'Transactions', icon: 'bi-receipt', link: '/payments/transactions', permissions: ['payments.view'] },
       { label: 'Payouts', icon: 'bi-bank', link: '/payments/payouts', permissions: ['payments.view'] },
+      { label: 'Subscription bills', icon: 'bi-receipt-cutoff', link: '/subscription-bills', permissions: ['billing.view', 'billing.manage'] },
     ],
   },
   {

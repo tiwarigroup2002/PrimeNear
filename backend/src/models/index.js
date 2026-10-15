@@ -1,6 +1,7 @@
 module.exports = {
   Admin: require('./Admin'),
   AuditLog: require('./AuditLog'),
+  BillTemplate: require('./BillTemplate'),
   Cart: require('./Cart'),
   Category: require('./Category'),
   Counter: require('./Counter'),
@@ -24,6 +25,7 @@ module.exports = {
   Seller: require('./Seller'),
   StockMovement: require('./StockMovement'),
   SubCategory: require('./SubCategory'),
+  SubscriptionInvoice: require('./SubscriptionInvoice'),
   SystemLog: require('./SystemLog'),
   Tahsil: require('./Tahsil'),
   User: require('./User'),

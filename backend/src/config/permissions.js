@@ -28,6 +28,8 @@ const PERMISSIONS = {
   'settings.view': 'View platform settings',
   'settings.manage': 'Change platform settings',
   'audit.view': 'View audit, login & system logs',
+  'billing.view': 'View seller subscription bills',
+  'billing.manage': 'Create, issue and design seller subscription bills',
 };
 
 const ALL = Object.keys(PERMISSIONS);
@@ -45,6 +47,7 @@ const ROLE_PERMISSIONS = {
     'disputes.view', 'disputes.manage',
     'analytics.view', 'reports.generate',
     'settings.view',
+    'billing.view', 'billing.manage',
   ],
   SupportAdmin: [
     'dashboard.view',

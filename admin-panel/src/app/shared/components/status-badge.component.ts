@@ -14,6 +14,8 @@ const COLORS: Record<string, string> = {
   Low: 'secondary', Medium: 'info', High: 'warning', Critical: 'danger',
   // settlement
   Unsettled: 'warning', InPayout: 'info', Settled: 'success', NotApplicable: 'secondary',
+  // subscription bills
+  Draft: 'secondary', Issued: 'warning', Paid: 'success',
   // login
   Locked: 'dark',
   // roles

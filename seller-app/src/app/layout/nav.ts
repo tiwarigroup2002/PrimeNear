@@ -19,6 +19,7 @@ export const NAV: { section?: string; items: NavItem[] }[] = [
     items: [
       { label: 'Reports', icon: 'bi-bar-chart-line', link: '/analytics' },
       { label: 'Earnings & payouts', icon: 'bi-wallet2', link: '/earnings' },
+      { label: 'PrimeNear bills', icon: 'bi-receipt-cutoff', link: '/subscription-bills' },
       { label: 'Reviews', icon: 'bi-star', link: '/reviews' },
     ],
   },
