@@ -13,6 +13,7 @@ const COLORS: Record<string, string> = {
   Open: 'danger', InProgress: 'warning', Resolved: 'success', Closed: 'secondary',
   Low: 'secondary', Medium: 'info', High: 'warning', Critical: 'danger',
   // settlement
+  Draft: 'secondary', Issued: 'warning', Paid: 'success',
   Unsettled: 'warning', InPayout: 'info', Settled: 'success', NotApplicable: 'secondary',
   // login
   Locked: 'dark',

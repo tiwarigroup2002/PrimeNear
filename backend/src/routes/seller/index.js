@@ -210,6 +210,31 @@ router.get('/payouts', insights.payouts);
 router.get('/payouts/:payoutId', insights.payout);
 
 // Notifications, reviews, support
+// Subscription bills raised by the platform on this shop (issued ones only)
+router.get('/subscription-bills', async (req, res) => {
+  const { SubscriptionInvoice } = require('../../models');
+  const items = await SubscriptionInvoice.find({ sellerId: req.sellerId, status: { $ne: 'Draft' } }).sort({ invoiceDate: -1 }).select('-templateSnapshot');
+  const outstanding = items.filter((b) => b.status === 'Issued').reduce((s, b) => s + (b.total || 0), 0);
+  res.json({ success: true, data: { items, outstanding } });
+});
+async function sellerBill(req) {
+  const mongoose = require('mongoose');
+  const { SubscriptionInvoice } = require('../../models');
+  if (!mongoose.isValidObjectId(req.params.id)) return null;
+  return SubscriptionInvoice.findOne({ _id: req.params.id, sellerId: req.sellerId, status: { $ne: 'Draft' } });
+}
+router.get('/subscription-bills/:id', async (req, res) => {
+  const bill = await sellerBill(req);
+  if (!bill) return res.status(404).json({ success: false, message: 'Bill not found' });
+  const { templateSnapshot, ...data } = bill.toJSON();
+  res.json({ success: true, data: { bill: data, template: templateSnapshot } });
+});
+router.get('/subscription-bills/:id/pdf', async (req, res) => {
+  const bill = await sellerBill(req);
+  if (!bill) return res.status(404).json({ success: false, message: 'Bill not found' });
+  require('../../services/subscription-bill.service').billPdf(bill, bill.templateSnapshot, res);
+});
+
 router.get('/notifications', engage.notifications);
 router.put('/notifications/:notificationId/read', engage.markRead);
 router.post('/notifications/mark-all-read', engage.markAllRead);

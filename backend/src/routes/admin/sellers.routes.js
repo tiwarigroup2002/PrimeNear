@@ -54,7 +54,7 @@ const createSchema = Joi.object({
 
 const reason = Joi.object({ reason: Joi.string().trim().min(3).max(500).required() });
 
-router.get('/lookup', requirePermission('sellers.view', 'users.manage', 'orders.view', 'payments.view', 'products.view', 'reports.generate'), ctrl.lookup);
+router.get('/lookup', requirePermission('sellers.view', 'users.manage', 'orders.view', 'payments.view', 'products.view', 'reports.generate', 'billing.manage'), ctrl.lookup);
 router.get('/', requirePermission('sellers.view'), ctrl.list);
 router.post('/', requirePermission('sellers.manage'), validate(createSchema), ctrl.create);
 router.get('/:sellerId', requirePermission('sellers.view'), ctrl.getOne);

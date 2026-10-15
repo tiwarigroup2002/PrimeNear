@@ -36,7 +36,7 @@ export class NotificationsComponent implements OnInit {
   }
 
   icon(type: string) {
-    return { LowStock: 'bi-exclamation-triangle text-warning', OrderStatus: 'bi-bag', Payout: 'bi-bank text-success', Refund: 'bi-arrow-counterclockwise', Dispute: 'bi-life-preserver', Product: 'bi-box', Account: 'bi-shield-exclamation text-danger', Return: 'bi-arrow-return-left text-warning', Review: 'bi-star text-warning' }[type] ?? 'bi-bell';
+    return { LowStock: 'bi-exclamation-triangle text-warning', OrderStatus: 'bi-bag', Payout: 'bi-bank text-success', Refund: 'bi-arrow-counterclockwise', Dispute: 'bi-life-preserver', Product: 'bi-box', Account: 'bi-shield-exclamation text-danger', Return: 'bi-arrow-return-left text-warning', Review: 'bi-star text-warning', Billing: 'bi-receipt-cutoff text-primary' }[type] ?? 'bi-bell';
   }
 
   open(n: any) {

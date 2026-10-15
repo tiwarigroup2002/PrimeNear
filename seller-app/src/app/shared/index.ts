@@ -10,3 +10,4 @@ export * from './components/state.component';
 export * from './components/chart.component';
 export * from './pipes/inr.pipe';
 export * from './pipes/time-ago.pipe';
+export * from './components/bill-view.component';

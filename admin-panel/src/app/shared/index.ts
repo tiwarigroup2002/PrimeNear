@@ -13,3 +13,4 @@ export * from './pipes/inr.pipe';
 export * from './pipes/time-ago.pipe';
 export * from './directives/can.directive';
 export * from './components/password-strength.component';
+export * from './components/bill-view.component';

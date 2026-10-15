@@ -191,3 +191,13 @@ A shop cannot link more customers than that — checked for seller add / CSV imp
 link (rows over the limit fail with a message), and bill sharing (the bill is still shared, the number is just not
 added). `GET /api/seller/customers` returns `customerCount`, `customerLimit` and `customersLeft`.
 Older shops without a limit (`null`) are not restricted until the admin sets one.
+
+### Subscription bills (PrimeNear -> seller)
+
+Admins make subscription bills for sellers by hand (nothing is generated automatically).
+
+- **Bill design** (`GET/PUT /api/admin/subscription-bills/template`, logo / signature upload at `POST .../template/image?kind=logo|signature`): company details, GSTIN/PAN, bank details, extra company fields, title, number format (`{FY}`, `{YYYY}`, `{MM}`, `{SEQ}`, e.g. `PN/{FY}/{SEQ}` -> `PN/2026-27/0001`), layout (classic / modern / compact), accent colour, logo position, font size, paper size, which fields are shown, renamed labels, default plan / HSN / GST % / due days, notes, terms, footer and signature.
+- **Bills**: `POST /subscription-bills` creates a draft (or `issue: true` to issue at once). Drafts can be edited or deleted. Issuing gives the next number, freezes the design on the bill (later design changes don't change it) and notifies the seller. Issued bills can be marked paid or cancelled (numbers are never reused).
+- **GST**: seller in the same state as the company -> CGST + SGST, other state -> IGST, or "No GST". Only tax rows with an amount are printed (screen and PDF).
+- **Permissions**: `billing.view`, `billing.manage` (Super Admin and Admin can manage; Support Admin cannot see bills).
+- **Seller app**: "PrimeNear bills" page shows issued / paid / cancelled bills (not drafts) with PDF download: `GET /api/seller/subscription-bills`, `/:id`, `/:id/pdf`.
