@@ -17,7 +17,7 @@ const authLimiter = rateLimit({
 
 const code = Joi.string().pattern(/^\d{6}$/).required().messages({ 'string.pattern.base': 'Code must be 6 digits' });
 
-router.post('/login', authLimiter, validate(Joi.object({ email: Joi.string().email().required(), password: Joi.string().required() })), ctrl.login);
+router.post('/login', authLimiter, validate(Joi.object({ email: Joi.string().required(), password: Joi.string().required() })), ctrl.login);
 router.post('/verify-2fa', authLimiter, authenticatePending2fa, validate(Joi.object({ code })), ctrl.verify2fa);
 router.post('/forgot-password', authLimiter, validate(Joi.object({ email: Joi.string().email().required() })), ctrl.forgotPassword);
 router.post('/reset-password', authLimiter, validate(Joi.object({ token: Joi.string().required(), newPassword: password().required() })), ctrl.resetPassword);

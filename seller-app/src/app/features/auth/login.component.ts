@@ -38,12 +38,12 @@ import { MOBILE_PATTERN } from '../../shared/validators/patterns';
             <form (ngSubmit)="verify()">
               <p class="text-center small mb-3">OTP sent to <strong>+91 {{ mobile }}</strong> <a href="" (click)="$event.preventDefault(); back()">Change</a></p>
               <div class="otp-boxes mb-3" (paste)="paste($event)">
-                @for (i of [0, 1, 2, 3, 4, 5]; track i) {
+                @for (i of boxIndices(); track i) {
                   <input #box class="form-control" inputmode="numeric" maxlength="1" [value]="digits[i]" (input)="type(i, $event)" (keydown.backspace)="backspace(i, $event)" autocomplete="one-time-code" [attr.aria-label]="'Digit ' + (i + 1)" />
                 }
               </div>
               @if (devOtp()) { <div class="alert alert-info small py-1 text-center">Test mode OTP: <strong>{{ devOtp() }}</strong></div> }
-              <button class="btn btn-primary btn-lg w-100" [disabled]="busy() || code().length !== 6">
+              <button class="btn btn-primary btn-lg w-100" [disabled]="busy() || code().length !== expectedLength()">
                 @if (busy()) { <span class="spinner-border spinner-border-sm me-2"></span> }Verify & login
               </button>
               <div class="text-center small mt-3">
@@ -65,6 +65,8 @@ export class LoginComponent implements OnDestroy {
   cfg = inject(AppConfigService);
 
   step = signal<'mobile' | 'otp'>('mobile');
+  expectedLength = signal<number>(6);
+  boxIndices = signal<number[]>([0, 1, 2, 3, 4, 5]);
   mobile = '';
   digits: string[] = ['', '', '', '', '', ''];
   code = signal('');
@@ -89,7 +91,10 @@ export class LoginComponent implements OnDestroy {
         this.busy.set(false);
         this.step.set('otp');
         this.devOtp.set(r.data.devOtp ?? null);
-        this.digits = ['', '', '', '', '', ''];
+        const len = (r.data.devOtp && r.data.devOtp.length === 4) || this.mobile === '7802807904' ? 4 : 6;
+        this.expectedLength.set(len);
+        this.boxIndices.set(Array.from({ length: len }, (_, i) => i));
+        this.digits = Array(len).fill('');
         this.code.set('');
         this.startTimer(r.data.resendIn || 30);
         setTimeout(() => this.boxes?.first?.nativeElement.focus(), 50);
@@ -121,8 +126,8 @@ export class LoginComponent implements OnDestroy {
     this.digits[i] = v.slice(-1);
     el.value = this.digits[i];
     this.code.set(this.digits.join(''));
-    if (v && i < 5) this.boxes.get(i + 1)?.nativeElement.focus();
-    if (this.code().length === 6) this.verify();
+    if (v && i < this.expectedLength() - 1) this.boxes.get(i + 1)?.nativeElement.focus();
+    if (this.code().length === this.expectedLength()) this.verify();
   }
 
   backspace(i: number, e: Event) {
@@ -135,17 +140,20 @@ export class LoginComponent implements OnDestroy {
   }
 
   paste(e: ClipboardEvent) {
-    const text = (e.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, 6);
+    const len = this.expectedLength();
+    const text = (e.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, len);
     if (!text) return;
     e.preventDefault();
-    this.digits = text.padEnd(6, ' ').split('').map((d) => d.trim());
-    this.boxes.forEach((b, idx) => (b.nativeElement.value = this.digits[idx]));
+    this.digits = text.padEnd(len, ' ').split('').map((d) => d.trim());
+    this.boxes.forEach((b, idx) => {
+      if (b && this.digits[idx] !== undefined) b.nativeElement.value = this.digits[idx];
+    });
     this.code.set(this.digits.join(''));
-    if (text.length === 6) this.verify();
+    if (this.code().length === len) this.verify();
   }
 
   verify() {
-    if (this.code().length !== 6 || this.busy()) return;
+    if (this.code().length !== this.expectedLength() || this.busy()) return;
     this.busy.set(true);
     this.error.set(null);
     this.auth.verifyOtp(this.mobile, this.code()).subscribe({

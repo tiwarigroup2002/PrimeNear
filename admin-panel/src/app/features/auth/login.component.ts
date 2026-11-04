@@ -22,17 +22,17 @@ import { errorMessage } from '../../core/interceptors/auth.interceptor';
           @if (error()) { <div class="alert alert-danger small py-2"><i class="bi bi-exclamation-circle me-1"></i>{{ error() }}</div> }
           <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
             <div class="mb-3">
-              <label class="form-label" for="email">Email address</label>
+              <label class="form-label" for="email">Email or Mobile number</label>
               <div class="input-group">
                 <span class="input-group-text"><i class="bi bi-envelope"></i></span>
-                <input id="email" type="email" class="form-control" formControlName="email" autocomplete="username" placeholder="admin@example.com"
+                <input id="email" type="text" class="form-control" formControlName="email" autocomplete="username" placeholder="admin@primenear.in or 7802807904"
                   [class.is-invalid]="form.controls.email.touched && form.controls.email.invalid" />
               </div>
-              @if (form.controls.email.touched && form.controls.email.invalid) { <div class="text-danger small mt-1">Enter a valid email address</div> }
+              @if (form.controls.email.touched && form.controls.email.invalid) { <div class="text-danger small mt-1">Enter your email or 10-digit mobile number</div> }
             </div>
             <div class="mb-3">
               <div class="d-flex justify-content-between">
-                <label class="form-label" for="password">Password</label>
+                <label class="form-label" for="password">Password / OTP</label>
                 <a routerLink="/auth/forgot-password" class="small text-decoration-none">Forgot password?</a>
               </div>
               <div class="input-group">
@@ -71,7 +71,7 @@ export class LoginComponent implements OnInit {
   notice = signal<string | null>(null);
 
   form = this.fb.nonNullable.group({
-    email: ['', [Validators.required, Validators.email]],
+    email: ['', [Validators.required]],
     password: ['', Validators.required],
     remember: [true],
   });

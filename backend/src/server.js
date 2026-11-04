@@ -3,9 +3,11 @@ const config = require('./config');
 const logger = require('./config/logger');
 const { connectDB } = require('./config/db');
 const { startScheduler } = require('./jobs/scheduler');
+const { seedTestAccount } = require('./seed/seedTestAccount');
 
 async function start() {
   await connectDB();
+  await seedTestAccount();
   startScheduler();
   const server = app.listen(config.port, () => logger.info(`PrimeNear API listening on port ${config.port} (${config.env})`));
 
