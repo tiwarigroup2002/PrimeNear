@@ -290,6 +290,9 @@ async function seedTestAccount() {
       const subCategoryId = subMap[item.sub] || subCategories[0]?._id;
       if (!categoryId) continue;
 
+      const gstAmount = Math.round(((item.price * item.gstRate) / 100) * 100) / 100;
+      const finalPrice = Math.round((item.price + gstAmount) * 100) / 100;
+
       await Product.findOneAndUpdate(
         { sellerId: seller._id, sku: item.sku },
         {
@@ -303,6 +306,8 @@ async function seedTestAccount() {
             mrp: item.mrp,
             stock: item.stock,
             gstRate: item.gstRate,
+            gstAmount,
+            finalPrice,
             sku: item.sku,
             images: item.images,
             description: item.description,
