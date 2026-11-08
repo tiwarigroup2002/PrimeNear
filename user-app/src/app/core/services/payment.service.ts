@@ -33,11 +33,11 @@ export class PaymentService {
     return new Promise<PayResult>((resolve) => {
       const user = this.auth.user();
       const rz = new window.Razorpay!({
-        key: info.keyId,
+        key: info.keyId || 'rzp_test_TwCksE6pLAy4gx',
         amount: info.amount,
-        currency: info.currency,
+        currency: info.currency || 'INR',
         order_id: info.razorpayOrderId,
-        name: this.cfg.config().platformName,
+        name: this.cfg.config().platformName || 'PrimeNear',
         description: `Order ${order.orderId}`,
         prefill: { contact: user?.mobileNumber ? '+91' + user.mobileNumber : undefined, name: user?.name, email: user?.email },
         theme: { color: '#d70f64' },
@@ -51,6 +51,7 @@ export class PaymentService {
         },
         modal: { ondismiss: () => resolve('dismissed'), confirm_close: true },
       });
+      rz.on('payment.failed', () => resolve('failed'));
       rz.open();
     });
   }
