@@ -13,6 +13,7 @@ module.exports = {
   Notification: require('./Notification'),
   Order: require('./Order'),
   Otp: require('./Otp'),
+  OtpRateLimit: require('./OtpRateLimit'),
   Payment: require('./Payment'),
   Payout: require('./Payout'),
   PlatformSettings: require('./PlatformSettings'),

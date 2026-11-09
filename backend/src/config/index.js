@@ -46,7 +46,20 @@ module.exports = {
   sms: {
     provider: process.env.SMS_PROVIDER || '', // e.g. msg91 / twilio (not wired yet)
   },
+  whatsapp: {
+    accessToken: process.env.WA_ACCESS_TOKEN || '',
+    phoneNumberId: process.env.WA_PHONE_NUMBER_ID || '',
+    apiVersion: process.env.WA_API_VERSION || 'v25.0',
+    templateName: process.env.WA_TEMPLATE_NAME || 'otp_login',
+    templateLang: process.env.WA_TEMPLATE_LANG || 'en',
+  },
   otp: {
+    length: Number(process.env.OTP_LENGTH) || 4,
+    expiryMinutes: Number(process.env.OTP_EXPIRY_MINUTES) || 5,
+    maxAttempts: Number(process.env.OTP_MAX_ATTEMPTS) || 5,
+    resendCooldownSeconds: Number(process.env.OTP_RESEND_COOLDOWN_SECONDS) || 60,
+    maxPerHour: Number(process.env.OTP_MAX_PER_HOUR) || 5,
+    hashSecret: process.env.OTP_HASH_SECRET || 'primenear_otp_hash_secret_key_2026',
     // Fixed OTP for local testing only (ignored in production)
     fixedCode: env !== 'production' ? process.env.DEV_FIXED_OTP || '' : '',
   },

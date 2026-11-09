@@ -18,6 +18,8 @@ router.use(maintenanceGuard);
 router.post('/auth/login', otpLimiter, validate(Joi.object({ mobileNumber: mobile().required() })), account.requestOtp);
 router.post('/auth/send-otp', otpLimiter, validate(Joi.object({ mobileNumber: mobile().required() })), account.requestOtp);
 router.post('/auth/verify-otp', otpLimiter, validate(Joi.object({ mobileNumber: mobile().required(), otp: Joi.string().pattern(/^\d{4,6}$/).required().messages({ 'string.pattern.base': 'OTP must be 4 to 6 digits' }) })), account.verify);
+router.post('/auth/otp/send', require('../../controllers/otp.controller').send);
+router.post('/auth/otp/verify', require('../../controllers/otp.controller').verify);
 
 router.use(authenticateUser);
 

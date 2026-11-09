@@ -30,19 +30,19 @@ import { MOBILE_PATTERN } from '../../shared/validators/patterns';
                 <input id="mobile" name="mobile" class="form-control" [(ngModel)]="mobile" maxlength="10" inputmode="numeric" autocomplete="tel-national" placeholder="98765 43210" autofocus />
               </div>
               <button class="btn btn-primary btn-lg w-100" [disabled]="busy()">
-                @if (busy()) { <span class="spinner-border spinner-border-sm me-2"></span> }Get OTP
+                @if (busy()) { <span class="spinner-border spinner-border-sm me-2"></span> }Get WhatsApp OTP
               </button>
-              <p class="small text-muted mt-3 mb-0 text-center">Your number must be added by a shop you buy from.</p>
+              <p class="small text-muted mt-3 mb-0 text-center"><i class="bi bi-whatsapp text-success me-1"></i>We'll send a 4-digit verification code via WhatsApp.</p>
             </form>
           } @else {
             <form (ngSubmit)="verify()">
-              <p class="text-center small mb-3">OTP sent to <strong>+91 {{ mobile }}</strong> <a href="" (click)="$event.preventDefault(); back()">Change</a></p>
+              <p class="text-center small mb-3"><i class="bi bi-whatsapp text-success me-1"></i>WhatsApp code sent to <strong>+91 {{ mobile }}</strong> <a href="" (click)="$event.preventDefault(); back()">Change</a></p>
               <div class="otp-boxes mb-3" (paste)="paste($event)">
                 @for (i of boxIndices(); track i) {
                   <input #box class="form-control" inputmode="numeric" maxlength="1" [value]="digits[i]" (input)="type(i, $event)" (keydown.backspace)="backspace(i, $event)" autocomplete="one-time-code" [attr.aria-label]="'Digit ' + (i + 1)" />
                 }
               </div>
-              @if (devOtp()) { <div class="alert alert-info small py-1 text-center">Test mode OTP: <strong>{{ devOtp() }}</strong></div> }
+              @if (devOtp()) { <div class="alert alert-info small py-1 text-center">Verification OTP: <strong>{{ devOtp() }}</strong></div> }
               <button class="btn btn-primary btn-lg w-100" [disabled]="busy() || code().length !== expectedLength()">
                 @if (busy()) { <span class="spinner-border spinner-border-sm me-2"></span> }Verify & login
               </button>
@@ -65,10 +65,10 @@ export class LoginComponent implements OnDestroy {
   cfg = inject(AppConfigService);
 
   step = signal<'mobile' | 'otp'>('mobile');
-  expectedLength = signal<number>(6);
-  boxIndices = signal<number[]>([0, 1, 2, 3, 4, 5]);
+  expectedLength = signal<number>(4);
+  boxIndices = signal<number[]>([0, 1, 2, 3]);
   mobile = '';
-  digits: string[] = ['', '', '', '', '', ''];
+  digits: string[] = ['', '', '', ''];
   code = signal('');
   busy = signal(false);
   error = signal<string | null>(null);
@@ -88,23 +88,24 @@ export class LoginComponent implements OnDestroy {
     this.busy.set(true);
     this.error.set(null);
     this.auth.sendOtp(this.mobile).subscribe({
-      next: (r) => {
-        this.busy.set(false);
-        this.step.set('otp');
-        this.devOtp.set(r.data.devOtp ?? null);
-        const len = (r.data.devOtp && r.data.devOtp.length === 4) || this.mobile === '7802807904' ? 4 : 6;
-        this.expectedLength.set(len);
-        this.boxIndices.set(Array.from({ length: len }, (_, i) => i));
-        this.digits = Array(len).fill('');
-        this.code.set('');
-        this.startTimer(r.data.resendIn || 30);
-        setTimeout(() => this.boxes?.first?.nativeElement.focus(), 50);
-      },
-      error: (e) => {
-        this.busy.set(false);
-        this.notLinked.set(e.status === 404);
-        this.error.set(errorMessage(e));
-      },
+        next: (r: any) => {
+          this.busy.set(false);
+          this.step.set('otp');
+          this.devOtp.set(r.data?.devOtp ?? null);
+          const len = 4;
+          this.expectedLength.set(len);
+          this.boxIndices.set([0, 1, 2, 3]);
+          this.digits = Array(len).fill('');
+          this.code.set('');
+          const resendSec = r.data?.resendIn || r.resendIn || 60;
+          this.startTimer(resendSec);
+          setTimeout(() => this.boxes?.first?.nativeElement.focus(), 50);
+        },
+          error: (e) => {
+            this.busy.set(false);
+            this.notLinked.set(e.status === 404);
+            this.error.set(errorMessage(e));
+          },
     });
   }
 

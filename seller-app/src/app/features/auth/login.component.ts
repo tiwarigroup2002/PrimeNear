@@ -65,10 +65,10 @@ export class LoginComponent implements OnDestroy {
   cfg = inject(AppConfigService);
 
   step = signal<'mobile' | 'otp'>('mobile');
-  expectedLength = signal<number>(6);
-  boxIndices = signal<number[]>([0, 1, 2, 3, 4, 5]);
+  expectedLength = signal<number>(4);
+  boxIndices = signal<number[]>([0, 1, 2, 3]);
   mobile = '';
-  digits: string[] = ['', '', '', '', '', ''];
+  digits: string[] = ['', '', '', ''];
   code = signal('');
   busy = signal(false);
   error = signal<string | null>(null);
@@ -87,16 +87,16 @@ export class LoginComponent implements OnDestroy {
     this.busy.set(true);
     this.error.set(null);
     this.auth.sendOtp(this.mobile).subscribe({
-      next: (r) => {
+      next: (r: any) => {
         this.busy.set(false);
         this.step.set('otp');
-        this.devOtp.set(r.data.devOtp ?? null);
-        const len = (r.data.devOtp && r.data.devOtp.length === 4) || this.mobile === '7802807904' ? 4 : 6;
+        this.devOtp.set(r.data?.devOtp ?? null);
+        const len = 4;
         this.expectedLength.set(len);
-        this.boxIndices.set(Array.from({ length: len }, (_, i) => i));
+        this.boxIndices.set([0, 1, 2, 3]);
         this.digits = Array(len).fill('');
         this.code.set('');
-        this.startTimer(r.data.resendIn || 30);
+        this.startTimer(r.data?.resendIn || 60);
         setTimeout(() => this.boxes?.first?.nativeElement.focus(), 50);
       },
       error: (e) => {

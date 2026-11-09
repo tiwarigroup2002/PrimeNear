@@ -26,15 +26,17 @@ export class AuthService {
   }
 
   sendOtp(mobileNumber: string) {
-    return this.http.post<ApiResponse<{ resendIn: number; devOtp?: string }>>(`${this.base}/auth/send-otp`, { mobileNumber });
+    return this.http.post<ApiResponse<{ expiresInSeconds?: number; resendIn: number; devOtp?: string }>>('/auth/otp/send', { phone: mobileNumber, mobileNumber });
   }
 
   verifyOtp(mobileNumber: string, otp: string) {
-    return this.http.post<ApiResponse<{ token: string; user: User; sellers: Shop[]; activeSellerId: string }>>(`${this.base}/auth/verify-otp`, { mobileNumber, otp }).pipe(
-      map((r) => r.data),
-      tap((d) => {
-        localStorage.setItem(TOKEN, d.token);
-        this.apply(d.user, d.sellers, d.activeSellerId);
+    return this.http.post<ApiResponse<{ token: string; user: User; sellers: Shop[]; activeSellerId: string }>>('/auth/otp/verify', { phone: mobileNumber, mobileNumber, otp }).pipe(
+      map((r: any) => r.data || r),
+      tap((d: any) => {
+        if (d?.token) {
+          localStorage.setItem(TOKEN, d.token);
+          this.apply(d.user, d.sellers, d.activeSellerId);
+        }
       })
     );
   }

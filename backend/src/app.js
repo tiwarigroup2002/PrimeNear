@@ -30,6 +30,10 @@ app.use('/uploads', express.static(config.uploadDir, { maxAge: '7d', index: fals
 
 app.get('/api/health', (_req, res) => res.json({ success: true, status: 'ok', time: new Date() }));
 
+// Meta WhatsApp Cloud API OTP Service (Endpoints: POST /auth/otp/send, POST /auth/otp/verify)
+app.use('/auth/otp', require('./routes/otp.routes'));
+app.use('/api/auth/otp', require('./routes/otp.routes'));
+
 // One backend for all three apps
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/seller', require('./routes/seller'));
