@@ -12,42 +12,115 @@ import { MOBILE_PATTERN } from '../../shared/validators/patterns';
   imports: [FormsModule],
   template: `
     <div class="auth-wrap">
-      <div class="card auth-card shadow-sm">
-        <div class="card-body p-4">
+      <div class="card auth-card shadow-lg border-0">
+        <div class="card-body">
           <div class="text-center mb-4">
-            <img src="logo.png" alt="PrimeNear" class="mb-2 rounded-4 shadow-sm" width="72" height="72" />
-            <h1 class="h4 fw-bold mb-1">{{ cfg.config().platformName }}</h1>
-            <p class="text-muted small mb-0">Shop from your trusted local stores</p>
+            <div class="position-relative d-inline-block mb-3">
+              <img src="logo.png" alt="PrimeNear" class="rounded-4 shadow" width="76" height="76" style="border: 2px solid rgba(255,255,255,0.9);" />
+              <span class="position-absolute bottom-0 end-0 translate-middle p-1 bg-success border border-light rounded-circle" title="WhatsApp Verified">
+                <span class="visually-hidden">Verified</span>
+              </span>
+            </div>
+            <h1 class="h4 fw-bolder mb-1 text-dark" style="letter-spacing: -0.02em;">{{ cfg.config().platformName }}</h1>
+            <p class="text-muted small mb-0 fw-medium">Hyperlocal Marketplace • Direct Local Store Delivery</p>
           </div>
-          @if (notice()) { <div class="alert alert-warning small py-2">{{ notice() }}</div> }
-          @if (error()) { <div class="alert small py-2" [class.alert-danger]="!notLinked()" [class.alert-warning]="notLinked()">@if (notLinked()) { <i class="bi bi-shop me-1"></i> }{{ error() }}</div> }
+
+          @if (notice()) {
+            <div class="alert alert-warning small py-2 d-flex align-items-center gap-2 rounded-3 border-0 shadow-xs mb-3">
+              <i class="bi bi-info-circle-fill fs-6 text-warning"></i>
+              <span>{{ notice() }}</span>
+            </div>
+          }
+          @if (error()) {
+            <div class="alert small py-2 d-flex align-items-center gap-2 rounded-3 border-0 shadow-xs mb-3" [class.alert-danger]="!notLinked()" [class.alert-warning]="notLinked()">
+              <i class="bi" [class.bi-exclamation-triangle-fill]="!notLinked()" [class.bi-shop]="notLinked()"></i>
+              <span>{{ error() }}</span>
+            </div>
+          }
 
           @if (step() === 'mobile') {
             <form (ngSubmit)="send()">
-              <label class="form-label" for="mobile">Mobile number</label>
-              <div class="input-group input-group-lg mb-3">
-                <span class="input-group-text">+91</span>
-                <input id="mobile" name="mobile" class="form-control" [(ngModel)]="mobile" maxlength="10" inputmode="numeric" autocomplete="tel-national" placeholder="98765 43210" autofocus />
+              <label class="form-label" for="mobile">Mobile Number</label>
+              <div class="input-group input-group-lg mb-3 shadow-xs">
+                <span class="input-group-text bg-light border-end-0 fw-bold text-dark px-3" style="font-size: 0.95rem;">
+                  🇮🇳 +91
+                </span>
+                <input
+                  id="mobile"
+                  name="mobile"
+                  class="form-control border-start-0 ps-1 fw-semibold text-dark"
+                  [(ngModel)]="mobile"
+                  maxlength="10"
+                  inputmode="numeric"
+                  autocomplete="tel-national"
+                  placeholder="Enter 10-digit number"
+                  autofocus
+                />
               </div>
-              <button class="btn btn-primary btn-lg w-100" [disabled]="busy()">
-                @if (busy()) { <span class="spinner-border spinner-border-sm me-2"></span> }Get WhatsApp OTP
+              <button class="btn btn-primary btn-lg w-100 py-3 shadow-sm rounded-3 fw-bold" [disabled]="busy() || mobile.length < 10">
+                @if (busy()) {
+                  <span class="spinner-border spinner-border-sm me-2"></span>Sending...
+                } @else {
+                  <i class="bi bi-whatsapp me-2 fs-5"></i>Get WhatsApp OTP
+                }
               </button>
-              <p class="small text-muted mt-3 mb-0 text-center"><i class="bi bi-whatsapp text-success me-1"></i>We'll send a 4-digit verification code via WhatsApp.</p>
+              <div class="d-flex align-items-center justify-content-center gap-2 mt-3 pt-1 text-muted small text-center">
+                <i class="bi bi-shield-check text-success fs-5"></i>
+                <span style="font-size: 0.78rem;">Instant 4-digit verification code sent via WhatsApp</span>
+              </div>
             </form>
           } @else {
             <form (ngSubmit)="verify()">
-              <p class="text-center small mb-3"><i class="bi bi-whatsapp text-success me-1"></i>WhatsApp code sent to <strong>+91 {{ mobile }}</strong> <a href="" (click)="$event.preventDefault(); back()">Change</a></p>
+              <div class="p-3 mb-3 rounded-4 bg-light text-center border">
+                <div class="d-inline-flex align-items-center gap-2 mb-1">
+                  <i class="bi bi-whatsapp text-success fs-5"></i>
+                  <span class="small fw-semibold text-dark">Verification Code Sent</span>
+                </div>
+                <div class="small text-muted">
+                  Sent to <strong>+91 {{ mobile }}</strong> · <a href="" (click)="$event.preventDefault(); back()" class="text-decoration-none fw-semibold text-primary">Edit number</a>
+                </div>
+              </div>
+
               <div class="otp-boxes mb-3" (paste)="paste($event)">
                 @for (i of boxIndices(); track i) {
-                  <input #box class="form-control" inputmode="numeric" maxlength="1" [value]="digits[i]" (input)="type(i, $event)" (keydown.backspace)="backspace(i, $event)" autocomplete="one-time-code" [attr.aria-label]="'Digit ' + (i + 1)" />
+                  <input
+                    #box
+                    class="form-control"
+                    inputmode="numeric"
+                    maxlength="1"
+                    [value]="digits[i]"
+                    (input)="type(i, $event)"
+                    (keydown.backspace)="backspace(i, $event)"
+                    autocomplete="one-time-code"
+                    [attr.aria-label]="'Digit ' + (i + 1)"
+                  />
                 }
               </div>
-              @if (devOtp()) { <div class="alert alert-info small py-1 text-center">Verification OTP: <strong>{{ devOtp() }}</strong></div> }
-              <button class="btn btn-primary btn-lg w-100" [disabled]="busy() || code().length !== expectedLength()">
-                @if (busy()) { <span class="spinner-border spinner-border-sm me-2"></span> }Verify & login
+
+              @if (devOtp()) {
+                <div class="alert alert-info small py-1 text-center rounded-3 mb-3 border-0">
+                  Verification Code: <strong>{{ devOtp() }}</strong>
+                </div>
+              }
+
+              <button class="btn btn-primary btn-lg w-100 py-3 shadow-sm rounded-3 fw-bold mb-3" [disabled]="busy() || code().length !== expectedLength()">
+                @if (busy()) {
+                  <span class="spinner-border spinner-border-sm me-2"></span>Verifying...
+                } @else {
+                  Verify & Continue <i class="bi bi-arrow-right ms-1"></i>
+                }
               </button>
-              <div class="text-center small mt-3">
-                @if (wait() > 0) { Resend OTP in {{ wait() }}s } @else { <a href="" (click)="$event.preventDefault(); send()">Resend OTP</a> }
+
+              <div class="text-center small">
+                @if (wait() > 0) {
+                  <span class="text-muted d-inline-flex align-items-center gap-1">
+                    <i class="bi bi-clock-history"></i> Resend code in <strong>{{ wait() }}s</strong>
+                  </span>
+                } @else {
+                  <a href="" (click)="$event.preventDefault(); send()" class="text-primary text-decoration-none fw-semibold">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Resend OTP via WhatsApp
+                  </a>
+                }
               </div>
             </form>
           }
@@ -88,24 +161,24 @@ export class LoginComponent implements OnDestroy {
     this.busy.set(true);
     this.error.set(null);
     this.auth.sendOtp(this.mobile).subscribe({
-        next: (r: any) => {
-          this.busy.set(false);
-          this.step.set('otp');
-          this.devOtp.set(r.data?.devOtp ?? null);
-          const len = 4;
-          this.expectedLength.set(len);
-          this.boxIndices.set([0, 1, 2, 3]);
-          this.digits = Array(len).fill('');
-          this.code.set('');
-          const resendSec = r.data?.resendIn || r.resendIn || 60;
-          this.startTimer(resendSec);
-          setTimeout(() => this.boxes?.first?.nativeElement.focus(), 50);
-        },
-          error: (e) => {
-            this.busy.set(false);
-            this.notLinked.set(e.status === 404);
-            this.error.set(errorMessage(e));
-          },
+      next: (r: any) => {
+        this.busy.set(false);
+        this.step.set('otp');
+        this.devOtp.set(r.data?.devOtp ?? null);
+        const len = 4;
+        this.expectedLength.set(len);
+        this.boxIndices.set([0, 1, 2, 3]);
+        this.digits = Array(len).fill('');
+        this.code.set('');
+        const resendSec = r.data?.resendIn || r.resendIn || 60;
+        this.startTimer(resendSec);
+        setTimeout(() => this.boxes?.first?.nativeElement.focus(), 50);
+      },
+      error: (e) => {
+        this.busy.set(false);
+        this.notLinked.set(e.status === 404);
+        this.error.set(errorMessage(e));
+      },
     });
   }
 
@@ -160,9 +233,10 @@ export class LoginComponent implements OnDestroy {
     this.busy.set(true);
     this.error.set(null);
     this.auth.verifyOtp(this.mobile, this.code()).subscribe({
-      next: (r) => {
+      next: (r: any) => {
         this.busy.set(false);
-        this.toast.success(r.user.name ? `Welcome, ${r.user.name}` : 'Welcome!');
+        const name = r.user?.name || r.name;
+        this.toast.success(name ? `Welcome back, ${name}!` : 'Welcome to PrimeNear!');
         this.router.navigateByUrl(this.route.snapshot.queryParamMap.get('returnUrl') || '/home');
       },
       error: (e) => {

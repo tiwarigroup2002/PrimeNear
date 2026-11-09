@@ -17,21 +17,27 @@ import { catIcon } from '../../shared/cat-icon';
         <div class="d-flex align-items-center gap-3 position-relative" style="z-index:1">
           @if (d.seller.shopImage) { <img [src]="d.seller.shopImage" class="hero-img" alt="" /> } @else { <span class="hero-img"><i class="bi bi-shop"></i></span> }
           <div class="min-w-0 flex-grow-1">
-            <div class="small opacity-75">{{ greeting() }}{{ auth.user()?.name ? ', ' + firstName() : '' }} 👋</div>
-            <h1 class="h5 fw-bold mb-1 text-truncate">{{ d.seller.shopName }}</h1>
+            <div class="small text-white-50 fw-medium">{{ greeting() }}{{ auth.user()?.name ? ', ' + firstName() : '' }} 👋</div>
+            <h1 class="h4 fw-bolder mb-1 text-truncate text-white" style="letter-spacing: -0.02em;">{{ d.seller.shopName }}</h1>
             <div class="d-flex flex-wrap gap-1">
-              @if (d.seller.ratingCount) { <span class="hero-chip"><i class="bi bi-star-fill"></i> {{ d.seller.rating }} ({{ d.seller.ratingCount }})</span> }
+              <span class="hero-chip"><i class="bi bi-patch-check-fill text-warning"></i> Verified Store</span>
+              @if (d.seller.ratingCount) { <span class="hero-chip"><i class="bi bi-star-fill text-warning"></i> {{ d.seller.rating }} ({{ d.seller.ratingCount }})</span> }
               @if (d.seller.tahsil) { <span class="hero-chip"><i class="bi bi-geo-alt"></i> {{ d.seller.tahsil }}</span> }
-              @if (d.seller.delivery) { <span class="hero-chip"><i class="bi bi-truck"></i> {{ d.seller.freeDeliveryAbove ? 'Free delivery above ₹' + d.seller.freeDeliveryAbove : 'Home delivery' }}</span> }
+              @if (d.seller.delivery) { <span class="hero-chip"><i class="bi bi-truck"></i> {{ d.seller.freeDeliveryAbove ? 'Free delivery above ₹' + d.seller.freeDeliveryAbove : 'Fast Delivery' }}</span> }
               @else { <span class="hero-chip"><i class="bi bi-shop-window"></i> Store pickup</span> }
-              @if (d.seller.cod) { <span class="hero-chip"><i class="bi bi-cash"></i> COD</span> }
+              @if (d.seller.cod) { <span class="hero-chip"><i class="bi bi-cash-coin"></i> COD</span> }
             </div>
           </div>
-          <a [routerLink]="['/shop', d.seller._id]" class="btn btn-sm btn-light rounded-pill flex-shrink-0">Info</a>
+          <a [routerLink]="['/shop', d.seller._id]" class="btn btn-sm btn-light rounded-pill flex-shrink-0 fw-bold px-3 shadow-xs">
+            <i class="bi bi-info-circle me-1"></i>Info
+          </a>
         </div>
       </section>
 
-      <a routerLink="/search" class="d-flex d-md-none align-items-center gap-2 bg-body border rounded-3 px-3 py-2 text-muted text-decoration-none mb-3"><i class="bi bi-search"></i> Search in {{ d.seller.shopName }}</a>
+      <a routerLink="/search" class="d-flex d-md-none align-items-center gap-2 bg-white border rounded-pill px-3 py-2 text-muted text-decoration-none mb-3 shadow-xs">
+        <i class="bi bi-search text-primary"></i>
+        <span class="small">Search in <strong>{{ d.seller.shopName }}</strong>...</span>
+      </a>
 
       @if (d.categories.length) {
         <div class="section-title"><h2>Categories</h2><a routerLink="/search" class="small">See all</a></div>

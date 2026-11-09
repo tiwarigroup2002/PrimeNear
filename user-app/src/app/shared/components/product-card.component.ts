@@ -13,26 +13,66 @@ import { InrPipe } from '../pipes/inr.pipe';
   template: `
     <div class="product-card">
       <a [routerLink]="['/product', p._id]" class="pc-img">
-        @if (p.images[0]) { <img [src]="p.images[0]" alt="" loading="lazy" (error)="$any($event.target).remove()" /> } @else { <span class="pc-placeholder"><i class="bi bi-image"></i></span> }
-        @if (p.discountPercent) { <span class="pc-badge">{{ p.discountPercent }}% OFF</span> }
-        @if (!p.inStock) { <span class="pc-out">Out of stock</span> }
+        @if (p.images[0]) {
+          <img [src]="p.images[0]" [alt]="p.name" loading="lazy" (error)="$any($event.target).remove()" />
+        } @else {
+          <span class="pc-placeholder"><i class="bi bi-image"></i></span>
+        }
+        @if (p.discountPercent) {
+          <span class="pc-badge">{{ p.discountPercent }}% OFF</span>
+        }
+        @if (!p.inStock) {
+          <span class="pc-out">Out of stock</span>
+        }
       </a>
-      <button class="pc-heart" (click)="toggleWish()" [attr.aria-label]="wished() ? 'Remove from wishlist' : 'Add to wishlist'"><i class="bi" [class.bi-heart-fill]="wished()" [class.text-danger]="wished()" [class.bi-heart]="!wished()"></i></button>
+
+      <button class="pc-heart" (click)="toggleWish()" [attr.aria-label]="wished() ? 'Remove from wishlist' : 'Add to wishlist'">
+        <i class="bi" [class.bi-heart-fill]="wished()" [class.text-danger]="wished()" [class.bi-heart]="!wished()"></i>
+      </button>
+
       <a [routerLink]="['/product', p._id]" class="pc-body">
-        <div class="pc-name">{{ p.name }}</div>
-        @if (p.ratingCount) { <div class="pc-rating"><span class="badge bg-success"><i class="bi bi-star-fill"></i> {{ p.rating.toFixed(1) }}</span> <span class="text-muted">({{ p.ratingCount }})</span></div> }
-        <div class="pc-price">@if (p.hasVariants) { <small class="text-muted">from</small> }<strong>{{ p.finalPrice | inr: 0 }}</strong>@if (p.mrp && p.mrp > p.finalPrice) { <s>{{ p.mrp | inr: 0 }}</s> }</div>
-        @if (p.hasVariants) { <div class="small text-muted text-truncate">@if (p.colors?.length) { {{ p.colors!.length }} colour{{ p.colors!.length > 1 ? "s" : "" }} }@if (p.colors?.length && p.sizes?.length) { · }@if (p.sizes?.length) { {{ p.sizes!.join(", ") }} }</div> }
+        <div class="pc-name" [title]="p.name">{{ p.name }}</div>
+        @if (p.ratingCount) {
+          <div class="pc-rating">
+            <span class="badge bg-success d-inline-flex align-items-center gap-1">
+              <i class="bi bi-star-fill" style="font-size: 0.65rem;"></i> {{ p.rating.toFixed(1) }}
+            </span>
+            <span class="text-muted small">({{ p.ratingCount }})</span>
+          </div>
+        }
+        <div class="pc-price">
+          @if (p.hasVariants) { <small class="text-muted">from</small> }
+          <strong>{{ p.finalPrice | inr: 0 }}</strong>
+          @if (p.mrp && p.mrp > p.finalPrice) {
+            <s>{{ p.mrp | inr: 0 }}</s>
+          }
+        </div>
+        @if (p.hasVariants) {
+          <div class="small text-muted text-truncate mt-1" style="font-size: 0.72rem;">
+            @if (p.colors?.length) { {{ p.colors!.length }} colour{{ p.colors!.length > 1 ? "s" : "" }} }
+            @if (p.colors?.length && p.sizes?.length) { · }
+            @if (p.sizes?.length) { {{ p.sizes!.join(", ") }} }
+          </div>
+        }
       </a>
+
       <div class="pc-foot">
         @if (p.inStock) {
           @if (p.hasVariants) {
-            <a class="btn btn-sm btn-outline-primary w-100" [routerLink]="['/product', p._id]"><i class="bi bi-palette me-1"></i>Choose options</a>
+            <a class="btn btn-sm btn-outline-primary w-100 py-1" [routerLink]="['/product', p._id]">
+              <i class="bi bi-palette me-1"></i>Options
+            </a>
           } @else {
-            <button class="btn btn-sm btn-outline-primary w-100" (click)="add()" [disabled]="busy()">@if (busy()) { <span class="spinner-border spinner-border-sm"></span> } @else { <i class="bi bi-cart-plus me-1"></i>Add }</button>
+            <button class="btn btn-sm btn-outline-primary w-100 py-1" (click)="add()" [disabled]="busy()">
+              @if (busy()) {
+                <span class="spinner-border spinner-border-sm me-1"></span>Adding...
+              } @else {
+                <i class="bi bi-cart-plus me-1"></i>Add
+              }
+            </button>
           }
         } @else {
-          <button class="btn btn-sm btn-light w-100" disabled>Notify later</button>
+          <button class="btn btn-sm btn-light w-100 py-1 text-muted" disabled>Out of Stock</button>
         }
       </div>
     </div>
@@ -51,8 +91,14 @@ export class ProductCardComponent {
   add() {
     this.busy.set(true);
     this.cart.add(this.p._id).subscribe({
-      next: () => { this.busy.set(false); this.toast.success('Added to cart'); },
-      error: (e) => { this.busy.set(false); this.toast.error(errorMessage(e)); },
+      next: () => {
+        this.busy.set(false);
+        this.toast.success('Added to cart');
+      },
+      error: (e) => {
+        this.busy.set(false);
+        this.toast.error(errorMessage(e));
+      },
     });
   }
 
@@ -61,8 +107,14 @@ export class ProductCardComponent {
     this.wished.set(on);
     const req = on ? this.api.post('/wishlist/add', { productId: this.p._id }) : this.api.delete(`/wishlist/${this.p._id}`);
     req.subscribe({
-      next: () => { this.wishChange.emit(on); if (on) this.toast.success('Saved to wishlist'); },
-      error: (e) => { this.wished.set(!on); this.toast.error(errorMessage(e)); },
+      next: () => {
+        this.wishChange.emit(on);
+        if (on) this.toast.success('Saved to wishlist');
+      },
+      error: (e) => {
+        this.wished.set(!on);
+        this.toast.error(errorMessage(e));
+      },
     });
   }
 }
