@@ -26,6 +26,12 @@ async function send(req, res, next) {
       },
     });
   } catch (err) {
+    if (err.statusCode === 502 || err.status === 502) {
+      return res.status(502).json({
+        success: false,
+        message: err.message || 'Failed to send OTP via WhatsApp. Please try again later.',
+      });
+    }
     next(err);
   }
 }
@@ -121,6 +127,12 @@ async function verify(req, res, next) {
       data: payload,
     });
   } catch (err) {
+    if (err.statusCode === 502 || err.status === 502) {
+      return res.status(502).json({
+        success: false,
+        message: err.message || 'Failed to send OTP via WhatsApp. Please try again later.',
+      });
+    }
     next(err);
   }
 }

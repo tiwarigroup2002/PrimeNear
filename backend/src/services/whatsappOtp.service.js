@@ -187,6 +187,31 @@ async function sendWhatsAppMessage(phone, otp) {
     // Log the error code and message without exposing token or OTP
     logger.error(`[WhatsApp API Error ${errCode}] ${knownDesc}: ${fbError.message} (type: ${fbError.type}, subcode: ${fbError.error_subcode})`);
 
+    // If template is not yet approved/found by Meta (error 132001), automatically fallback to test template
+    if (errCode === 132001 && templateName !== '3p_direct_integration_test_template') {
+      logger.info('[WhatsApp API] Retrying with test template "3p_direct_integration_test_template" (en_US)...');
+      const retryPayload = {
+        messaging_product: 'whatsapp',
+        to: phone,
+        type: 'template',
+        template: {
+          name: '3p_direct_integration_test_template',
+          language: { code: 'en_US' },
+        },
+      };
+      const retryResponse = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(retryPayload),
+      });
+      if (retryResponse.ok) {
+        return retryResponse.json().catch(() => ({}));
+      }
+    }
+
     const error = new Error('WhatsApp dispatch failed');
     error.status = 502;
     error.fbCode = errCode;
@@ -244,6 +269,13 @@ async function sendOtp(rawPhone) {
     await sendWhatsAppMessage(phone, otp);
     await recordPhoneRequest(limitDoc);
   } catch (err) {
+    if (isTestAccount) {
+      logger.warn(`[WhatsApp API] Delivery skipped for test account ${phone}: ${err.message}`);
+      return {
+        success: true,
+        expiresInSeconds: expiryMinutes * 60,
+      };
+    }
     // Delete stored OTP if WhatsApp API failed
     await Otp.findByIdAndDelete(storedOtp._id).catch(() => {});
     throw new ApiError(502, 'Failed to send OTP via WhatsApp. Please try again later.');

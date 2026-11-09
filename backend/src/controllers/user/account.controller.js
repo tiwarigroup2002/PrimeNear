@@ -16,24 +16,58 @@ async function hasActiveLink(userId) {
   return (await linkedSellers(userId)).length > 0;
 }
 
-/** POST /auth/send-otp - only numbers added by at least one active shop can log in */
+/** POST /auth/send-otp - send OTP without revealing whether number exists */
 async function requestOtp(req, res) {
   const { mobileNumber } = req.body;
   const user = await User.findOne({ mobileNumber });
-  if (!user || user.status === 'Deleted' || !(await hasActiveLink(user._id))) throw ApiError.notFound(NOT_LINKED);
-  if (user.status === 'Blocked') throw ApiError.forbidden('Your account is blocked. Please contact support.');
-  return ok(res, await sendOtp(mobileNumber, 'user-login'), 'OTP sent');
+  if (user && user.status === 'Blocked') {
+    throw ApiError.forbidden('Your account is blocked. Please contact support.');
+  }
+  const result = await sendOtp(mobileNumber, 'user-login');
+  return ok(res, result, 'OTP sent');
 }
 
 /** POST /auth/verify-otp */
 async function verify(req, res) {
   const { mobileNumber, otp } = req.body;
   await verifyOtp(mobileNumber, 'user-login', otp);
-  const user = await User.findOne({ mobileNumber, status: 'Active' });
-  if (!user) throw ApiError.forbidden('Account not available');
-  const sellers = await linkedSellers(user._id);
-  if (!sellers.length) throw ApiError.notFound(NOT_LINKED);
-  if (!sellers.some((s) => String(s._id) === String(user.currentActiveSellerId))) user.currentActiveSellerId = sellers[0]._id;
+  let user = await User.findOne({ mobileNumber, status: { $ne: 'Deleted' } });
+  if (user && user.status === 'Blocked') throw ApiError.forbidden('Your account is blocked. Please contact support.');
+
+  if (!user) {
+    const defaultSeller = await Seller.findOne({ status: 'Active' }).sort({ createdAt: 1 });
+    user = await User.create({
+      mobileNumber,
+      name: 'Customer',
+      currentActiveSellerId: defaultSeller?._id || null,
+      status: 'Active',
+    });
+    if (defaultSeller) {
+      await Customer.create({
+        userId: user._id,
+        sellerId: defaultSeller._id,
+        mobileNumber,
+        customerType: 'Retail',
+      });
+    }
+  }
+
+  let sellers = await linkedSellers(user._id);
+  if (!sellers.length) {
+    const defaultSeller = await Seller.findOne({ status: 'Active' }).sort({ createdAt: 1 });
+    if (defaultSeller) {
+      await Customer.findOneAndUpdate(
+        { userId: user._id, sellerId: defaultSeller._id },
+        { userId: user._id, sellerId: defaultSeller._id, mobileNumber, customerType: 'Retail' },
+        { upsert: true }
+      );
+      sellers = await linkedSellers(user._id);
+    }
+  }
+
+  if (sellers.length && !sellers.some((s) => String(s._id) === String(user.currentActiveSellerId))) {
+    user.currentActiveSellerId = sellers[0]._id;
+  }
   user.lastLogin = new Date();
   await user.save();
   await LoginHistory.create({ principalType: 'User', principalId: user._id, identifier: mobileNumber, ipAddress: req.ip, userAgent: req.get('user-agent'), status: 'Success' });

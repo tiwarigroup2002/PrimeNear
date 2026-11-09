@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { map, tap } from 'rxjs';
+import { catchError, map, tap, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ApiResponse, Shop, User } from '../models/api.models';
 
@@ -26,19 +26,50 @@ export class AuthService {
   }
 
   sendOtp(mobileNumber: string) {
-    return this.http.post<ApiResponse<{ expiresInSeconds?: number; resendIn: number; devOtp?: string }>>('/auth/otp/send', { phone: mobileNumber, mobileNumber });
+    return this.http
+      .post<ApiResponse<{ expiresInSeconds?: number; resendIn: number; devOtp?: string }>>('/auth/otp/send', {
+        phone: mobileNumber,
+        mobileNumber,
+      })
+      .pipe(
+        catchError((err) => {
+          // If /auth is not directly proxied by Nginx on the live domain, fallback to /api/auth/otp/send
+          if (err.status === 404 || (err.status === 200 && typeof err.error === 'string')) {
+            return this.http.post<ApiResponse<{ expiresInSeconds?: number; resendIn: number; devOtp?: string }>>(
+              '/api/auth/otp/send',
+              { phone: mobileNumber, mobileNumber }
+            );
+          }
+          return throwError(() => err);
+        })
+      );
   }
 
   verifyOtp(mobileNumber: string, otp: string) {
-    return this.http.post<ApiResponse<{ token: string; user: User; sellers: Shop[]; activeSellerId: string }>>('/auth/otp/verify', { phone: mobileNumber, mobileNumber, otp }).pipe(
-      map((r: any) => r.data || r),
-      tap((d: any) => {
-        if (d?.token) {
-          localStorage.setItem(TOKEN, d.token);
-          this.apply(d.user, d.sellers, d.activeSellerId);
-        }
+    return this.http
+      .post<ApiResponse<{ token: string; user: User; sellers: Shop[]; activeSellerId: string }>>('/auth/otp/verify', {
+        phone: mobileNumber,
+        mobileNumber,
+        otp,
       })
-    );
+      .pipe(
+        catchError((err) => {
+          if (err.status === 404 || (err.status === 200 && typeof err.error === 'string')) {
+            return this.http.post<ApiResponse<{ token: string; user: User; sellers: Shop[]; activeSellerId: string }>>(
+              '/api/auth/otp/verify',
+              { phone: mobileNumber, mobileNumber, otp }
+            );
+          }
+          return throwError(() => err);
+        }),
+        map((r: any) => r.data || r),
+        tap((d: any) => {
+          if (d?.token) {
+            localStorage.setItem(TOKEN, d.token);
+            this.apply(d.user, d.sellers, d.activeSellerId);
+          }
+        })
+      );
   }
 
   refreshMe() {

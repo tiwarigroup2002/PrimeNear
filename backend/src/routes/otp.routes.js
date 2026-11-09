@@ -27,9 +27,11 @@ const ipVerifyLimiter = rateLimit({
 
 // 1) POST /auth/otp/send   body: { phone }
 router.post('/send', ipSendLimiter, otpController.send);
+router.post('/otp/send', ipSendLimiter, otpController.send);
 
 // 2) POST /auth/otp/verify body: { phone, otp }
 router.post('/verify', ipVerifyLimiter, otpController.verify);
+router.post('/otp/verify', ipVerifyLimiter, otpController.verify);
 
 module.exports = router;
 
