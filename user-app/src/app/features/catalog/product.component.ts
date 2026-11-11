@@ -16,7 +16,15 @@ import { InrPipe, ProductCardComponent, StarsComponent, StateComponent } from '.
   template: `
     <app-state [loading]="loading()" [error]="error()" />
     @if (p(); as p) {
-      <a href="" (click)="$event.preventDefault(); back()" class="small text-muted text-decoration-none d-inline-block mb-2"><i class="bi bi-arrow-left"></i> Back</a>
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <button (click)="back()" class="btn btn-sm btn-light border rounded-pill px-3 py-1 shadow-xs d-inline-flex align-items-center gap-2">
+          <i class="bi bi-arrow-left"></i> <span class="fw-semibold">Back</span>
+        </button>
+        <div class="small text-muted text-truncate ms-2 d-none d-sm-block">
+          {{ p.categoryId?.name }}@if (p.subCategoryId?.name) { <i class="bi bi-chevron-right small mx-1"></i> {{ p.subCategoryId.name }} }
+        </div>
+      </div>
+
       <div class="row g-3 g-lg-4">
         <div class="col-lg-5">
           <div class="gallery-main">
@@ -32,26 +40,62 @@ import { InrPipe, ProductCardComponent, StarsComponent, StateComponent } from '.
             </div>
           }
           @for (v of p.videos || []; track v) {
-            <video class="product-video mt-2" [src]="v" controls playsinline preload="metadata"></video>
+            <video class="product-video mt-2 w-100 rounded-3 shadow-xs" [src]="v" controls playsinline preload="metadata"></video>
           }
-        </div>
-        <div class="col-lg-7">
-          <div class="small text-muted">{{ p.categoryId?.name }}@if (p.subCategoryId?.name) { › {{ p.subCategoryId.name }} }</div>
-          <h1 class="h4 fw-semibold mb-1">{{ p.name }}</h1>
-          @if (p.ratingCount) {
-            <div class="d-flex align-items-center gap-2 mb-2 small"><span class="badge bg-success"><i class="bi bi-star-fill"></i> {{ p.rating.toFixed(1) }}</span><span class="text-muted">{{ p.ratingCount }} ratings</span>@if (p.soldCount) { <span class="text-muted">· {{ p.soldCount }} sold</span> }</div>
-          }
-          <div class="d-flex align-items-baseline gap-2 flex-wrap">
-            @if (p.hasVariants && !variant()) { <span class="text-muted small">from</span> }
-            <span class="price-big">{{ price().finalPrice | inr }}</span>
-            @if (price().mrp && price().mrp! > price().finalPrice) { <s class="text-muted">MRP {{ price().mrp | inr }}</s><span class="text-success fw-semibold">{{ discount() }}% off</span> }
+
+          <!-- Trust highlights strip -->
+          <div class="card p-3 mt-3 border-0 bg-body-tertiary rounded-4 shadow-xs">
+            <div class="row g-2 text-center small">
+              <div class="col-4">
+                <i class="bi bi-lightning-charge-fill text-warning fs-5 d-block mb-1"></i>
+                <div class="fw-bold">Fast Delivery</div>
+                <div class="text-muted" style="font-size: 0.72rem;">Within 30-45 mins</div>
+              </div>
+              <div class="col-4 border-start border-end">
+                <i class="bi bi-box-seam-fill text-success fs-5 d-block mb-1"></i>
+                <div class="fw-bold">Open Box Check</div>
+                <div class="text-muted" style="font-size: 0.72rem;">Verify at delivery</div>
+              </div>
+              <div class="col-4">
+                <i class="bi bi-patch-check-fill text-primary fs-5 d-block mb-1"></i>
+                <div class="fw-bold">100% Genuine</div>
+                <div class="text-muted" style="font-size: 0.72rem;">Trusted local store</div>
+              </div>
+            </div>
           </div>
-          <div class="small text-muted mb-2">{{ price().sellingPrice | inr }} + {{ p.gstRate }}% GST ({{ price().gstAmount | inr }}) · inclusive of all taxes</div>
+        </div>
+
+        <div class="col-lg-7">
+          <div class="small text-muted mb-1">{{ p.categoryId?.name }}@if (p.subCategoryId?.name) { › {{ p.subCategoryId.name }} }</div>
+          <h1 class="h3 fw-bold mb-2 text-balance">{{ p.name }}</h1>
+          
+          <div class="d-flex align-items-center gap-2 mb-3 small flex-wrap">
+            @if (p.ratingCount) {
+              <span class="badge bg-success rounded-pill px-2 py-1"><i class="bi bi-star-fill me-1"></i>{{ p.rating.toFixed(1) }}</span>
+              <span class="text-muted fw-medium">{{ p.ratingCount }} verified ratings</span>
+            }
+            @if (p.soldCount) { <span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill">🔥 {{ p.soldCount }} bought recently</span> }
+          </div>
+
+          <div class="p-3 rounded-4 bg-body-tertiary mb-3 border">
+            <div class="d-flex align-items-baseline gap-2 flex-wrap">
+              @if (p.hasVariants && !variant()) { <span class="text-muted small">from</span> }
+              <span class="price-big">{{ price().finalPrice | inr }}</span>
+              @if (price().mrp && price().mrp! > price().finalPrice) {
+                <s class="text-muted">MRP {{ price().mrp | inr }}</s>
+                <span class="badge bg-danger-subtle text-danger fw-bold rounded-pill px-2">{{ discount() }}% OFF</span>
+              }
+            </div>
+            <div class="small text-muted mt-1 d-flex align-items-center gap-1">
+              <i class="bi bi-check-circle-fill text-success"></i>
+              <span>Inclusive of all taxes · {{ p.gstRate }}% GST ({{ price().gstAmount | inr }})</span>
+            </div>
+          </div>
 
           @if (p.hasVariants) {
             @if (p.colors?.length) {
-              <div class="mb-2">
-                <div class="small fw-semibold mb-1">Colour: <span class="fw-normal">{{ color() || 'choose' }}</span></div>
+              <div class="mb-3">
+                <div class="small fw-semibold mb-2">Colour: <span class="fw-normal text-muted">{{ color() || 'Select an option' }}</span></div>
                 <div class="d-flex flex-wrap gap-2">
                   @for (c of p.colors; track c) {
                     <button class="variant-chip" [class.active]="color() === c" [class.soldout]="!colorInStock(c)" (click)="pickColor(c)">
@@ -62,8 +106,8 @@ import { InrPipe, ProductCardComponent, StarsComponent, StateComponent } from '.
               </div>
             }
             @if (p.sizes?.length) {
-              <div class="mb-2">
-                <div class="small fw-semibold mb-1">Size: <span class="fw-normal">{{ size() || 'choose' }}</span></div>
+              <div class="mb-3">
+                <div class="small fw-semibold mb-2">Size: <span class="fw-normal text-muted">{{ size() || 'Select a size' }}</span></div>
                 <div class="d-flex flex-wrap gap-2">
                   @for (s of p.sizes; track s) {
                     <button class="variant-chip size" [class.active]="size() === s" [class.soldout]="!sizeAvailable(s)" [disabled]="!sizeExists(s)" (click)="size.set(s)">{{ s }}</button>
@@ -73,14 +117,14 @@ import { InrPipe, ProductCardComponent, StarsComponent, StateComponent } from '.
             }
           }
 
-          @if (!p.available) { <div class="alert alert-secondary py-2 small">This product is currently not available.</div> }
-          @else if (p.hasVariants && !variant()) { <div class="text-muted small fw-semibold mb-2">Choose {{ missingChoice() }} to see stock</div> }
-          @else if (stock() <= 0) { <div class="alert alert-danger py-2 small"><i class="bi bi-x-circle me-1"></i>Out of stock@if (variant()) { in {{ variant()!.label }} }</div> }
-          @else if (stock() <= 5) { <div class="text-danger small fw-semibold mb-2">Only {{ stock() }} left – hurry!</div> }
-          @else { <div class="text-success small fw-semibold mb-2"><i class="bi bi-check-circle me-1"></i>In stock</div> }
+          @if (!p.available) { <div class="alert alert-secondary py-2 small rounded-3"><i class="bi bi-info-circle me-1"></i>This product is currently not available.</div> }
+          @else if (p.hasVariants && !variant()) { <div class="alert alert-light border py-2 small fw-semibold text-muted rounded-3"><i class="bi bi-hand-index-thumb me-1"></i>Please choose {{ missingChoice() }} to check stock</div> }
+          @else if (stock() <= 0) { <div class="alert alert-danger py-2 small rounded-3"><i class="bi bi-x-circle me-1"></i>Out of stock@if (variant()) { in {{ variant()!.label }} }</div> }
+          @else if (stock() <= 5) { <div class="text-danger small fw-semibold mb-2"><i class="bi bi-exclamation-triangle-fill me-1"></i>Only {{ stock() }} left in stock – order soon!</div> }
+          @else { <div class="text-success small fw-semibold mb-2"><i class="bi bi-check-circle-fill me-1"></i>In stock & ready to dispatch</div> }
 
           @if (!isActiveShop()) {
-            <div class="alert alert-info py-2 small"><i class="bi bi-info-circle me-1"></i>This product is from <strong>{{ seller()?.shopName }}</strong>. Adding it will switch your shop@if (cart.count()) { and empty your current cart }.</div>
+            <div class="alert alert-info py-2 small rounded-3"><i class="bi bi-info-circle me-1"></i>This product is from <strong>{{ seller()?.shopName }}</strong>. Adding it will switch your shop@if (cart.count()) { and empty your current cart }.</div>
           }
 
           @if (p.available && p.inStock) {
@@ -91,43 +135,59 @@ import { InrPipe, ProductCardComponent, StarsComponent, StateComponent } from '.
                   <span>{{ inCart() }}</span>
                   <button (click)="changeQty(inCart() + 1)" [disabled]="busy() || inCart() >= stock()" aria-label="Increase"><i class="bi bi-plus-lg"></i></button>
                 </div>
-                <a routerLink="/cart" class="btn btn-outline-primary flex-grow-1">Go to cart</a>
+                <a routerLink="/cart" class="btn btn-outline-primary flex-grow-1"><i class="bi bi-bag-check me-1"></i>View Cart</a>
               } @else {
                 <button class="btn btn-outline-primary flex-grow-1" (click)="add(false)" [disabled]="busy() || !canBuy()"><i class="bi bi-cart-plus me-1"></i>Add to cart</button>
               }
-              <button class="btn btn-primary flex-grow-1" (click)="add(true)" [disabled]="busy() || !canBuy()"><i class="bi bi-lightning-charge me-1"></i>Buy now</button>
+              <button class="btn btn-primary flex-grow-1" (click)="add(true)" [disabled]="busy() || !canBuy()"><i class="bi bi-lightning-charge-fill me-1"></i>Buy now</button>
             </div>
           }
 
           @if (p.description) {
-            <h2 class="h6 fw-semibold mt-3">About this item</h2>
-            <p class="text-pre small mb-2">{{ p.description }}</p>
+            <div class="card p-3 border-0 bg-body-tertiary rounded-4 mt-3">
+              <h2 class="h6 fw-bold mb-2">About this item</h2>
+              <p class="text-pre small mb-0 text-secondary lh-base">{{ p.description }}</p>
+            </div>
           }
 
-          <a [routerLink]="['/shop', seller()?._id]" class="card card-body d-flex flex-row align-items-center gap-3 text-decoration-none text-body mt-3 py-2">
+          <a [routerLink]="['/shop', seller()?._id]" class="card card-body d-flex flex-row align-items-center gap-3 text-decoration-none text-body mt-3 py-3 rounded-4 shadow-xs">
             @if (seller()?.shopImage) { <img [src]="seller()!.shopImage" class="shop-thumb" alt="" /> } @else { <span class="shop-thumb shop-thumb-icon"><i class="bi bi-shop"></i></span> }
-            <div class="flex-grow-1 min-w-0"><div class="small text-muted">Sold by</div><div class="fw-semibold text-truncate">{{ seller()?.shopName }}</div></div>
-            @if (seller()?.ratingCount) { <span class="small"><i class="bi bi-star-fill text-warning"></i> {{ seller()!.rating }}</span> }
+            <div class="flex-grow-1 min-w-0">
+              <div class="small text-muted">Sold by</div>
+              <div class="fw-bold text-truncate">{{ seller()?.shopName }}</div>
+              <div class="small text-muted">{{ seller()?.tahsil || 'Local neighbourhood partner' }}</div>
+            </div>
+            @if (seller()?.ratingCount) {
+              <span class="badge bg-warning-subtle text-warning-emphasis rounded-pill px-2 py-1"><i class="bi bi-star-fill text-warning me-1"></i>{{ seller()!.rating }}</span>
+            }
             <i class="bi bi-chevron-right text-muted"></i>
           </a>
         </div>
       </div>
 
-      <div class="section-title"><h2>Ratings & reviews</h2></div>
+      <div class="section-title mt-4"><h2>Ratings & reviews</h2></div>
       @if (reviews().length) {
-        <div class="card"><div class="m-list">
+        <div class="card rounded-4 border-0 shadow-sm"><div class="m-list">
           @for (r of reviews(); track r._id) {
-            <div class="m-item d-block">
-              <div class="d-flex justify-content-between"><app-stars [value]="r.rating" /><small class="text-muted">{{ r.createdAt | date: 'd MMM y' }}</small></div>
-              @if (r.reviewText) { <p class="mb-1 mt-1 small">{{ r.reviewText }}</p> }
-              <small class="text-muted">{{ r.userId?.name || 'Customer' }}</small>
+            <div class="m-item d-block p-3">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <app-stars [value]="r.rating" />
+                <small class="text-muted">{{ r.createdAt | date: 'd MMM y' }}</small>
+              </div>
+              @if (r.reviewText) { <p class="mb-1 mt-1 small text-secondary">{{ r.reviewText }}</p> }
+              <small class="text-muted fw-medium"><i class="bi bi-person-check-fill text-success me-1"></i>{{ r.userId?.name || 'Verified Customer' }}</small>
             </div>
           }
         </div></div>
-      } @else { <p class="text-muted small">No reviews yet. Be the first to review after you buy.</p> }
+      } @else {
+        <div class="card p-4 text-center rounded-4 border-dashed bg-body-tertiary">
+          <i class="bi bi-chat-heart text-muted fs-2 mb-2 opacity-50"></i>
+          <p class="text-muted small mb-0">No reviews yet. Be the first to review after your purchase!</p>
+        </div>
+      }
 
       @if (related().length) {
-        <div class="section-title"><h2>You may also like</h2></div>
+        <div class="section-title mt-4"><h2>You may also like</h2></div>
         <div class="h-scroll">@for (r of related(); track r._id) { <app-product-card [product]="r" /> }</div>
       }
     }

@@ -17,118 +17,211 @@ const RETURN_REASONS = ['Damaged / broken item', 'Wrong item received', 'Item mi
   selector: 'app-order-detail',
   imports: [DatePipe, FormsModule, RouterLink, InrPipe, PageHeaderComponent, SheetComponent, StarsComponent, StateComponent, StatusBadgeComponent],
   template: `
-    <app-page-header [title]="o()?.orderId || 'Order'" back="/orders" backLabel="My orders">
+    <app-page-header [title]="'Order #' + (o()?.orderId || '')" back="/orders" backLabel="My Orders">
       @if (o()) { <app-status-badge [status]="o().orderStatus" /> }
     </app-page-header>
     <app-state [loading]="loading()" [error]="error()" />
     @if (o(); as o) {
-      <div class="row g-3">
+      <div class="row g-3 g-lg-4">
         <div class="col-lg-7">
+          <!-- Delivery Security Code -->
           @if (d().deliveryCode) {
-            <div class="card mb-3" style="border-color: rgba(var(--bs-primary-rgb), .4)"><div class="card-body d-flex align-items-center gap-3 flex-wrap">
-              <i class="bi bi-shield-lock fs-2 text-primary"></i>
-              <div class="flex-grow-1">
-                <div class="fw-semibold">Delivery code</div>
-                <div class="small text-muted">Open the box and check your items. Tell this code to the shop only after you receive them.</div>
+            <div class="card mb-3 border-0 rounded-4 shadow-sm overflow-hidden" style="background: linear-gradient(135deg, rgba(215, 15, 100, 0.08) 0%, rgba(255, 122, 89, 0.12) 100%); border: 1.5px dashed var(--pn-primary) !important;">
+              <div class="card-body p-3 d-flex align-items-center gap-3 flex-wrap">
+                <div class="rounded-circle d-flex align-items-center justify-content-center bg-white shadow-xs" style="width: 48px; height: 48px; color: var(--pn-primary);">
+                  <i class="bi bi-shield-lock-fill fs-4"></i>
+                </div>
+                <div class="flex-grow-1 min-w-0">
+                  <div class="fw-bold text-dark">Open Box Delivery Code</div>
+                  <div class="small text-muted">Inspect your items first. Share this secret OTP code with the store/delivery partner only after you are satisfied.</div>
+                </div>
+                <div class="px-3 py-2 rounded-3 bg-white shadow-sm border text-primary fw-bold fs-4 letter-spacing-2">
+                  {{ d().deliveryCode }}
+                </div>
               </div>
-              <span class="delivery-code">{{ d().deliveryCode }}</span>
-            </div></div>
-          }
-          @if (d().canPay) {
-            <div class="alert alert-warning d-flex align-items-center gap-2 flex-wrap">
-              <i class="bi bi-hourglass-split fs-4"></i>
-              <div class="flex-grow-1"><strong>Payment pending.</strong><div class="small">Pay within {{ minutesLeft() }} min or the order will be cancelled automatically.</div></div>
-              <button class="btn btn-primary" (click)="payNow()" [disabled]="busy()">Pay {{ o.finalAmount | inr }}</button>
             </div>
           }
+
+          <!-- Pending Payment Banner -->
+          @if (d().canPay) {
+            <div class="alert alert-warning border-0 rounded-4 shadow-xs d-flex align-items-center gap-3 flex-wrap p-3">
+              <i class="bi bi-hourglass-split fs-3 text-warning"></i>
+              <div class="flex-grow-1">
+                <strong>Payment Pending</strong>
+                <div class="small">Complete your payment within {{ minutesLeft() }} minutes to prevent automatic cancellation.</div>
+              </div>
+              <button class="btn btn-primary rounded-pill px-4 shadow-sm" (click)="payNow()" [disabled]="busy()">
+                Pay Now {{ o.finalAmount | inr }}
+              </button>
+            </div>
+          }
+
           @if (o.orderStatus === 'Cancelled') {
-            <div class="alert alert-danger"><i class="bi bi-x-circle me-1"></i><strong>Order cancelled.</strong> @if (o.cancelReason) { <div class="small">Reason: {{ o.cancelReason }}</div> }
-              @if (o.refundedAmount) { <div class="small">Refund of {{ o.refundedAmount | inr }} has been started to your original payment method.</div> }
+            <div class="alert alert-danger border-0 rounded-4 shadow-xs p-3">
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <i class="bi bi-x-circle-fill fs-5"></i>
+                <strong class="fs-6">Order Cancelled</strong>
+              </div>
+              @if (o.cancelReason) { <div class="small text-muted">Reason: {{ o.cancelReason }}</div> }
+              @if (o.refundedAmount) { <div class="small fw-semibold text-success mt-1">Refund of {{ o.refundedAmount | inr }} initiated to your original payment method.</div> }
             </div>
           } @else if (o.source === 'Online') {
-            <div class="card mb-3"><div class="card-body">
-              <div class="status-flow">
-                @for (s of flow; track s; let i = $index) {
-                  <div class="step" [class.done]="i < stepIndex() || (i === stepIndex() && s === 'Delivered')" [class.current]="i === stepIndex() && s !== 'Delivered'">
-                    <div class="dot">@if (i < stepIndex() || s === 'Delivered' && i === stepIndex()) { <i class="bi bi-check"></i> } @else { {{ i + 1 }} }</div>
-                    {{ label(s) }}
-                  </div>
-                }
+            <!-- Tracking Timeline Flow -->
+            <div class="card mb-3 border-0 rounded-4 shadow-sm overflow-hidden">
+              <div class="card-body p-4">
+                <div class="status-flow">
+                  @for (s of flow; track s; let i = $index) {
+                    <div class="step" [class.done]="i < stepIndex() || (i === stepIndex() && s === 'Delivered')" [class.current]="i === stepIndex() && s !== 'Delivered'">
+                      <div class="dot shadow-xs">
+                        @if (i < stepIndex() || (s === 'Delivered' && i === stepIndex())) {
+                          <i class="bi bi-check-lg"></i>
+                        } @else {
+                          {{ i + 1 }}
+                        }
+                      </div>
+                      <span class="step-label fw-semibold mt-1 d-block">{{ label(s) }}</span>
+                    </div>
+                  }
+                </div>
+                @if (o.orderStatus === 'Returned') { <div class="alert alert-secondary small mt-3 mb-0 py-2 rounded-3 text-center">This order was returned.</div> }
               </div>
-              @if (o.orderStatus === 'Returned') { <div class="alert alert-secondary small mt-3 mb-0 py-2">This order was returned.</div> }
-            </div></div>
+            </div>
           }
 
           @if (d().returnRequest; as r) {
-            <div class="card mb-3 border-info-subtle"><div class="card-body">
-              <div class="d-flex justify-content-between"><h2 class="h6 fw-semibold mb-1"><i class="bi bi-arrow-return-left me-1"></i>Return request</h2><app-status-badge [status]="r.status === 'Initiated' ? 'Pending' : r.status" /></div>
+            <div class="card mb-3 border-0 rounded-4 bg-info-subtle text-info-emphasis shadow-xs"><div class="card-body p-3">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <h2 class="h6 fw-bold mb-0"><i class="bi bi-arrow-return-left me-1"></i>Return Request</h2>
+                <app-status-badge [status]="r.status === 'Initiated' ? 'Pending' : r.status" />
+              </div>
               <div class="small">{{ r.reason }}@if (r.description) { – {{ r.description }} }</div>
-              @if (r.status === 'Initiated') { <div class="small text-muted mt-1">Waiting for the shop to review your request.</div> }
-              @if (r.refundAmount && r.status !== 'Rejected') { <div class="small mt-1">Refund: <strong>{{ r.refundAmount | inr }}</strong> · {{ r.refundStatus }}</div> }
+              @if (r.status === 'Initiated') { <div class="small text-muted mt-1">Waiting for the store to review and accept your request.</div> }
+              @if (r.refundAmount && r.status !== 'Rejected') { <div class="small mt-1">Refund Amount: <strong>{{ r.refundAmount | inr }}</strong> · {{ r.refundStatus }}</div> }
               @if (r.approvalNotes) { <div class="small text-muted mt-1">Shop note: {{ r.approvalNotes }}</div> }
             </div></div>
           }
 
-          <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between"><span>{{ o.items.length }} item(s)</span><a [routerLink]="['/shop', o.sellerId?._id]" class="small">{{ o.sellerId?.shopName }}</a></div>
+          <!-- Items Ordered Card -->
+          <div class="card mb-3 border-0 rounded-4 shadow-sm overflow-hidden">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+              <span class="fw-bold text-dark">{{ o.items.length }} item{{ o.items.length === 1 ? '' : 's' }}</span>
+              <a [routerLink]="['/shop', o.sellerId?._id]" class="small text-decoration-none fw-semibold">
+                <i class="bi bi-shop me-1 text-primary"></i>{{ o.sellerId?.shopName }}
+              </a>
+            </div>
             <div class="m-list">
               @for (it of o.items; track $index) {
-                <a class="m-item" [routerLink]="['/product', it.productId]">
-                  @if (it.image) { <img [src]="it.image" class="thumb" alt="" /> } @else { <span class="thumb"><i class="bi bi-box"></i></span> }
-                  <div class="flex-grow-1 min-w-0"><div class="line-clamp-2">{{ it.productName }}</div>@if (it.variantLabel) { <span class="variant-tag">{{ it.variantLabel }}</span> }<small class="text-muted">{{ it.quantity }} × {{ it.subtotal / it.quantity | inr }}</small>
-                    @if (productReview(it.productId); as pr) { <div><app-stars [value]="pr.rating" /></div> }
+                <a class="m-item py-3 px-3" [routerLink]="['/product', it.productId]">
+                  @if (it.image) {
+                    <img [src]="it.image" class="thumb rounded-3 shadow-xs border" alt="" />
+                  } @else {
+                    <span class="thumb rounded-3 bg-light d-flex align-items-center justify-content-center text-muted border"><i class="bi bi-box"></i></span>
+                  }
+                  <div class="flex-grow-1 min-w-0">
+                    <div class="line-clamp-2 fw-semibold text-dark">{{ it.productName }}</div>
+                    @if (it.variantLabel) { <span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill my-1">{{ it.variantLabel }}</span> }
+                    <div class="small text-muted">{{ it.quantity }} × {{ it.subtotal / it.quantity | inr }}</div>
+                    @if (productReview(it.productId); as pr) { <div class="mt-1"><app-stars [value]="pr.rating" /></div> }
                   </div>
-                  <strong>{{ it.subtotal | inr }}</strong>
+                  <strong class="fs-6 text-dark">{{ it.subtotal | inr }}</strong>
                 </a>
               }
             </div>
-            <div class="card-body border-top">
-              <div class="summary-row small"><span>Items</span><span>{{ o.subtotal | inr }}</span></div>
-              <div class="summary-row small"><span>GST</span><span>{{ o.gstAmount | inr }}</span></div>
-              @if (o.deliveryCharge) { <div class="summary-row small"><span>Delivery</span><span>{{ o.deliveryCharge | inr }}</span></div> }
+            <div class="card-body border-top p-4">
+              <div class="summary-row small"><span>Items subtotal</span><span>{{ o.subtotal | inr }}</span></div>
+              <div class="summary-row small"><span>GST & taxes</span><span>{{ o.gstAmount | inr }}</span></div>
+              @if (o.deliveryCharge) { <div class="summary-row small"><span>Delivery fee</span><span>{{ o.deliveryCharge | inr }}</span></div> }
               @if (o.discount) { <div class="summary-row small text-success"><span>Discount</span><span>-{{ o.discount | inr }}</span></div> }
-              <div class="summary-row summary-total"><span>Total</span><span>{{ o.finalAmount | inr }}</span></div>
-              @if (o.refundedAmount) { <div class="summary-row small text-success"><span>Refunded</span><span>{{ o.refundedAmount | inr }}</span></div> }
+              <div class="summary-row summary-total pt-3 mt-2 border-top">
+                <span>Total Paid</span>
+                <span class="text-primary">{{ o.finalAmount | inr }}</span>
+              </div>
+              @if (o.refundedAmount) { <div class="summary-row small text-success mt-2"><span>Refunded</span><span>{{ o.refundedAmount | inr }}</span></div> }
             </div>
           </div>
         </div>
 
+        <!-- Sidebar / Actions -->
         <div class="col-lg-5">
-          <div class="card mb-3"><div class="card-body d-grid gap-2">
-            @if (d().canReview) { <button class="btn btn-primary" (click)="openRate()"><i class="bi bi-star me-1"></i>{{ d().reviews.length ? 'Edit your rating' : 'Rate this order' }}</button> }
-            @if (o.source === 'Online' && ['Delivered', 'Cancelled', 'Returned'].includes(o.orderStatus)) { <button class="btn btn-outline-primary" (click)="reorder()" [disabled]="busy()"><i class="bi bi-arrow-repeat me-1"></i>Order again</button> }
-            @if (['Delivered', 'Returned'].includes(o.orderStatus)) { <button class="btn btn-outline-secondary" (click)="invoice()"><i class="bi bi-receipt me-1"></i>View invoice</button> }
-            @if (d().canReturn) { <button class="btn btn-outline-secondary" (click)="returnOpen.set(true)"><i class="bi bi-arrow-return-left me-1"></i>Return / item issue</button><small class="text-muted text-center">You can raise an issue until {{ d().returnDeadline | date: 'd MMM, h:mm a' }}</small> }
-            @if (d().canCancel) { <button class="btn btn-outline-danger" (click)="cancelOpen.set(true)"><i class="bi bi-x-circle me-1"></i>Cancel order</button> }
-            <div class="d-flex gap-2">
-              @if (o.sellerId?.mobileNumber) { <a class="btn btn-light flex-grow-1" [href]="'tel:+91' + o.sellerId.mobileNumber"><i class="bi bi-telephone me-1"></i>Call shop</a> }
-              <a class="btn btn-light flex-grow-1" routerLink="/support" [queryParams]="{ orderId: o.orderId }"><i class="bi bi-question-circle me-1"></i>Get help</a>
+          <div class="card mb-3 border-0 rounded-4 shadow-sm overflow-hidden">
+            <div class="card-body p-3 d-grid gap-2">
+              @if (d().canReview) {
+                <button class="btn btn-primary rounded-pill py-2 shadow-sm" (click)="openRate()">
+                  <i class="bi bi-star-fill me-2"></i>{{ d().reviews.length ? 'Edit Rating & Review' : 'Rate Your Order' }}
+                </button>
+              }
+              @if (o.source === 'Online' && ['Delivered', 'Cancelled', 'Returned'].includes(o.orderStatus)) {
+                <button class="btn btn-outline-primary rounded-pill py-2 shadow-xs" (click)="reorder()" [disabled]="busy()">
+                  <i class="bi bi-arrow-repeat me-2"></i>Order Again
+                </button>
+              }
+              @if (['Delivered', 'Returned'].includes(o.orderStatus)) {
+                <button class="btn btn-light rounded-pill py-2 border shadow-xs" (click)="invoice()">
+                  <i class="bi bi-receipt me-2 text-primary"></i>Download Tax Invoice
+                </button>
+              }
+              @if (d().canReturn) {
+                <button class="btn btn-outline-secondary rounded-pill py-2" (click)="returnOpen.set(true)">
+                  <i class="bi bi-arrow-return-left me-2"></i>Report Item Issue
+                </button>
+                <small class="text-muted text-center">Available until {{ d().returnDeadline | date: 'd MMM, h:mm a' }}</small>
+              }
+              @if (d().canCancel) {
+                <button class="btn btn-outline-danger rounded-pill py-2" (click)="cancelOpen.set(true)">
+                  <i class="bi bi-x-circle me-2"></i>Cancel Order
+                </button>
+              }
+              <div class="d-flex gap-2 mt-1">
+                @if (o.sellerId?.mobileNumber) {
+                  <a class="btn btn-light flex-grow-1 rounded-pill border shadow-xs" [href]="'tel:+91' + o.sellerId.mobileNumber">
+                    <i class="bi bi-telephone-fill me-1 text-success"></i>Call Store
+                  </a>
+                }
+                <a class="btn btn-light flex-grow-1 rounded-pill border shadow-xs" routerLink="/support" [queryParams]="{ orderId: o.orderId }">
+                  <i class="bi bi-question-circle-fill me-1 text-primary"></i>Need Help?
+                </a>
+              </div>
             </div>
-          </div></div>
+          </div>
 
-          <div class="card mb-3"><div class="card-body">
-            <dl class="dl-grid small mb-0">
-              <dt>Placed on</dt><dd>{{ o.createdAt | date: 'd MMM y, h:mm a' }}</dd>
-              <dt>Payment</dt><dd>{{ o.paymentMethod === 'Cash' ? 'Cash' : 'Online' }} · <app-status-badge [status]="o.paymentStatus" /></dd>
-              @if (o.source === 'Online') {
-                <dt>{{ o.deliveryType === 'Pickup' ? 'Pickup' : 'Deliver to' }}</dt>
-                <dd>@if (o.deliveryType === 'Pickup') { From store: {{ o.sellerId?.shopAddress || o.sellerId?.shopName }} } @else { {{ o.deliveryAddress?.name }}<br />{{ addr(o.deliveryAddress) }} }</dd>
-              }
-              @if (o.billingAddress?.fullAddress) {
-                <dt>Billing</dt><dd>{{ o.billingAddress.name }}<br />{{ addr(o.billingAddress) }}</dd>
-              }
-              @if (o.deliveredAt) { <dt>Delivered</dt><dd>{{ o.deliveredAt | date: 'd MMM y, h:mm a' }}</dd> }
-              @if (o.customerNote) { <dt>Your note</dt><dd>{{ o.customerNote }}</dd> }
-            </dl>
-          </div></div>
+          <!-- Order Info Card -->
+          <div class="card mb-3 border-0 rounded-4 shadow-sm overflow-hidden">
+            <div class="card-header bg-white py-3 border-bottom">
+              <span class="fw-bold text-dark">Order Information</span>
+            </div>
+            <div class="card-body p-3">
+              <dl class="dl-grid small mb-0">
+                <dt>Placed on</dt><dd class="fw-medium">{{ o.createdAt | date: 'd MMM y, h:mm a' }}</dd>
+                <dt>Payment</dt><dd class="fw-medium">{{ o.paymentMethod === 'Cash' ? 'Cash on Delivery' : 'Online Payment' }} · <app-status-badge [status]="o.paymentStatus" /></dd>
+                @if (o.source === 'Online') {
+                  <dt>{{ o.deliveryType === 'Pickup' ? 'Pickup Store' : 'Delivery to' }}</dt>
+                  <dd>@if (o.deliveryType === 'Pickup') { {{ o.sellerId?.shopAddress || o.sellerId?.shopName }} } @else { <span class="fw-semibold">{{ o.deliveryAddress?.name }}</span><br /><span class="text-muted">{{ addr(o.deliveryAddress) }}</span> }</dd>
+                }
+                @if (o.billingAddress?.fullAddress) {
+                  <dt>Billing</dt><dd><span class="fw-semibold">{{ o.billingAddress.name }}</span><br /><span class="text-muted">{{ addr(o.billingAddress) }}</span></dd>
+                }
+                @if (o.deliveredAt) { <dt>Delivered on</dt><dd class="text-success fw-bold">{{ o.deliveredAt | date: 'd MMM y, h:mm a' }}</dd> }
+                @if (o.customerNote) { <dt>Your note</dt><dd class="fst-italic text-muted">"{{ o.customerNote }}"</dd> }
+              </dl>
+            </div>
+          </div>
 
-          <div class="card"><div class="card-header">Order updates</div><div class="card-body">
-            <ul class="timeline">
-              @for (h of history(); track $index) {
-                <li><div class="fw-semibold small">{{ label(h.status) }}</div><small class="text-muted">{{ h.at | date: 'd MMM, h:mm a' }}@if (h.note) { · {{ h.note }} }</small></li>
-              }
-            </ul>
-          </div></div>
+          <!-- Timeline -->
+          <div class="card border-0 rounded-4 shadow-sm overflow-hidden">
+            <div class="card-header bg-white py-3 border-bottom">
+              <span class="fw-bold text-dark">Status Updates</span>
+            </div>
+            <div class="card-body p-3">
+              <ul class="timeline">
+                @for (h of history(); track $index) {
+                  <li>
+                    <div class="fw-bold text-dark small">{{ label(h.status) }}</div>
+                    <small class="text-muted">{{ h.at | date: 'd MMM, h:mm a' }}@if (h.note) { · {{ h.note }} }</small>
+                  </li>
+                }
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
     }

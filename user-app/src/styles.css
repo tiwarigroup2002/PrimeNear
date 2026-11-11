@@ -960,3 +960,80 @@
 @media (max-width: 991.98px) {
   .toast-stack { left: 0.85rem; right: 0.85rem; top: 0.85rem; max-width: none; }
 }
+
+/* ---------- Enhanced Micro-interactions & Visual Helpers ---------- */
+.transition-card {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s ease;
+}
+.transition-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--pn-shadow-md) !important;
+}
+
+.option-icon-box {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+.option-card:hover .option-icon-box {
+  transform: scale(1.08);
+}
+
+.search-input-group {
+  border-radius: var(--pn-radius-full);
+  overflow: hidden;
+  border: 1.5px solid #e2e8f0;
+  background: #ffffff;
+  transition: var(--pn-transition);
+}
+.search-input-group:focus-within {
+  border-color: var(--pn-primary);
+  box-shadow: 0 0 0 4px rgba(215, 15, 100, 0.12);
+}
+.search-input-group .form-control {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.stat-mini {
+  padding: 0.65rem 0.25rem;
+}
+
+.letter-spacing-2 {
+  letter-spacing: 0.15em;
+}
+
+/* Status flow pulsation */
+.status-flow .step.current .dot {
+  background: var(--pn-gradient-primary) !important;
+  border-color: transparent !important;
+  box-shadow: 0 0 0 4px rgba(215, 15, 100, 0.25);
+  animation: statusPulse 1.8s infinite;
+}
+@keyframes statusPulse {
+  0% { box-shadow: 0 0 0 0 rgba(215, 15, 100, 0.5); }
+  70% { box-shadow: 0 0 0 8px rgba(215, 15, 100, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(215, 15, 100, 0); }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+

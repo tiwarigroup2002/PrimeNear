@@ -14,20 +14,22 @@ const EMPTY: Filters = { q: '', category: '', subCategory: '', sortBy: '', price
   selector: 'app-search',
   imports: [FormsModule, ProductCardComponent, SheetComponent, StateComponent],
   template: `
-    <div class="d-flex gap-2 mb-2">
-      <div class="input-group">
-        <span class="input-group-text bg-body"><i class="bi bi-search"></i></span>
-        <input class="form-control" type="search" placeholder="Search products" [(ngModel)]="f.q" (ngModelChange)="typed$.next()" (keydown.enter)="apply()" aria-label="Search products" />
+    <div class="d-flex gap-2 mb-3">
+      <div class="input-group search-input-group shadow-xs">
+        <span class="input-group-text bg-white border-end-0 ps-3 text-muted"><i class="bi bi-search"></i></span>
+        <input class="form-control border-start-0 py-2 ps-1 pe-3" type="search" placeholder="Search products, brands, or categories..." [(ngModel)]="f.q" (ngModelChange)="typed$.next()" (keydown.enter)="apply()" aria-label="Search products" />
       </div>
-      <button class="btn btn-outline-secondary position-relative flex-shrink-0" (click)="filtersOpen.set(true)" aria-label="Filters">
-        <i class="bi bi-sliders"></i>@if (activeFilterCount()) { <span class="dot-count">{{ activeFilterCount() }}</span> }
+      <button class="btn btn-light border rounded-pill px-3 position-relative flex-shrink-0 shadow-xs d-inline-flex align-items-center gap-2" (click)="filtersOpen.set(true)" aria-label="Filters">
+        <i class="bi bi-sliders2-vertical text-primary"></i>
+        <span class="d-none d-sm-inline fw-semibold small">Filters</span>
+        @if (activeFilterCount()) { <span class="dot-count">{{ activeFilterCount() }}</span> }
       </button>
     </div>
 
     <div class="chip-row mb-2">
-      <button class="chip" [class.active]="!f.category" (click)="setCategory('')">All</button>
+      <button class="chip" [class.active]="!f.category" (click)="setCategory('')">All Categories</button>
       @for (c of categories(); track c._id) {
-        <button class="chip" [class.active]="f.category === c._id" (click)="setCategory(c._id)">{{ c.name }} <span class="opacity-75">{{ c.productCount }}</span></button>
+        <button class="chip" [class.active]="f.category === c._id" (click)="setCategory(c._id)">{{ c.name }} <span class="badge bg-light text-dark rounded-pill ms-1">{{ c.productCount }}</span></button>
       }
     </div>
     @if (subCategories().length) {
@@ -38,16 +40,19 @@ const EMPTY: Filters = { q: '', category: '', subCategory: '', sortBy: '', price
       </div>
     }
 
-    <div class="d-flex justify-content-between align-items-center mb-2 small">
-      <span class="text-muted">@if (!loading() || items().length) { {{ total() }} product{{ total() === 1 ? '' : 's' }} }</span>
-      <select class="form-select form-select-sm w-auto" [(ngModel)]="f.sortBy" (ngModelChange)="apply()" aria-label="Sort by">
-        <option value="">Relevance</option>
-        <option value="popular">Popular</option>
-        <option value="price_asc">Price: low to high</option>
-        <option value="price_desc">Price: high to low</option>
-        <option value="rating">Top rated</option>
-        <option value="new">Newest</option>
-      </select>
+    <div class="d-flex justify-content-between align-items-center my-3 small">
+      <span class="text-muted fw-semibold">@if (!loading() || items().length) { Found {{ total() }} product{{ total() === 1 ? '' : 's' }} }</span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small d-none d-sm-inline">Sort by:</span>
+        <select class="form-select form-select-sm w-auto rounded-pill border shadow-xs" [(ngModel)]="f.sortBy" (ngModelChange)="apply()" aria-label="Sort by">
+          <option value="">Relevance</option>
+          <option value="popular">Popularity</option>
+          <option value="price_asc">Price: Low to High</option>
+          <option value="price_desc">Price: High to Low</option>
+          <option value="rating">Top Rated</option>
+          <option value="new">New Arrivals</option>
+        </select>
+      </div>
     </div>
 
     <div class="product-grid">

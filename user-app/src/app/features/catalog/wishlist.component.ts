@@ -10,22 +10,35 @@ import { InrPipe, PageHeaderComponent, StateComponent } from '../../shared';
   selector: 'app-wishlist',
   imports: [RouterLink, InrPipe, PageHeaderComponent, StateComponent],
   template: `
-    <app-page-header title="My wishlist" icon="bi-heart" [subtitle]="items().length ? items().length + ' saved item(s)' : ''" />
-    <app-state [loading]="loading()" [error]="error()" [empty]="!loading() && !error() && !items().length" icon="bi-heart" emptyText="Nothing saved yet. Tap the ♡ on a product to save it." />
+    <app-page-header title="My Wishlist" icon="bi-heart-fill" [subtitle]="items().length ? items().length + ' item(s) saved for later' : ''" />
+    <app-state [loading]="loading()" [error]="error()" [empty]="!loading() && !error() && !items().length" icon="bi-heart" emptyText="Your wishlist is empty. Tap the ♡ on any item to save it here!" />
     @if (items().length) {
-      <div class="card"><div class="m-list">
+      <div class="card border-0 rounded-4 shadow-sm overflow-hidden"><div class="m-list">
         @for (w of items(); track w.product._id) {
-          <div class="m-item">
-            <a [routerLink]="['/product', w.product._id]">@if (w.product.images[0]) { <img [src]="w.product.images[0]" class="thumb" alt="" /> } @else { <span class="thumb"><i class="bi bi-image"></i></span> }</a>
+          <div class="m-item p-3 d-flex align-items-center gap-3">
+            <a [routerLink]="['/product', w.product._id]" class="flex-shrink-0">
+              @if (w.product.images[0]) {
+                <img [src]="w.product.images[0]" class="thumb rounded-3 shadow-xs border" alt="" />
+              } @else {
+                <span class="thumb rounded-3 bg-light d-flex align-items-center justify-content-center text-muted border"><i class="bi bi-image"></i></span>
+              }
+            </a>
             <div class="flex-grow-1 min-w-0">
-              <a [routerLink]="['/product', w.product._id]" class="text-body text-decoration-none fw-semibold line-clamp-2">{{ w.product.name }}</a>
-              <div class="small text-muted text-truncate">{{ w.shopName }}</div>
-              <div><strong>{{ w.product.finalPrice | inr: 0 }}</strong>@if (w.priceDrop) { <span class="badge bg-success-subtle text-success-emphasis ms-1"><i class="bi bi-arrow-down"></i> {{ w.priceDrop | inr: 0 }} price drop</span> }</div>
-              @if (!w.product.inStock) { <small class="text-danger">Out of stock</small> }
+              <a [routerLink]="['/product', w.product._id]" class="text-body text-decoration-none fw-bold line-clamp-2">{{ w.product.name }}</a>
+              <div class="small text-muted text-truncate mt-1"><i class="bi bi-shop me-1 text-primary"></i>{{ w.shopName }}</div>
+              <div class="mt-1">
+                <strong class="fs-6 text-dark">{{ w.product.finalPrice | inr: 0 }}</strong>
+                @if (w.priceDrop) { <span class="badge bg-success-subtle text-success-emphasis rounded-pill ms-2"><i class="bi bi-arrow-down"></i> {{ w.priceDrop | inr: 0 }} price drop</span> }
+              </div>
+              @if (!w.product.inStock) { <small class="text-danger fw-semibold d-block mt-1">Currently Out of stock</small> }
             </div>
-            <div class="d-flex flex-column gap-1">
-              <button class="btn btn-sm btn-primary" [disabled]="!w.product.inStock || busy() === w.product._id" (click)="moveToCart(w)" aria-label="Move to cart"><i class="bi bi-cart-plus"></i></button>
-              <button class="btn btn-sm btn-light" (click)="remove(w)" aria-label="Remove"><i class="bi bi-trash"></i></button>
+            <div class="d-flex flex-column gap-2 flex-shrink-0">
+              <button class="btn btn-sm btn-primary rounded-pill px-3 shadow-xs" [disabled]="!w.product.inStock || busy() === w.product._id" (click)="moveToCart(w)" aria-label="Move to cart">
+                <i class="bi bi-cart-plus me-1"></i>Add
+              </button>
+              <button class="btn btn-sm btn-light border text-danger rounded-pill shadow-xs" (click)="remove(w)" aria-label="Remove">
+                <i class="bi bi-trash3"></i>
+              </button>
             </div>
           </div>
         }

@@ -10,33 +10,56 @@ import { InrPipe, PageHeaderComponent, StateComponent, StatusBadgeComponent } fr
   selector: 'app-orders',
   imports: [RouterLink, DatePipe, InrPipe, PageHeaderComponent, StateComponent, StatusBadgeComponent],
   template: `
-    <app-page-header title="My orders" icon="bi-bag-check" />
+    <app-page-header title="My Orders" icon="bi-bag-check-fill" subtitle="Track and manage your hyperlocal orders" />
     <div class="chip-row mb-3">
       @for (t of tabs; track t.v) { <button class="chip" [class.active]="tab() === t.v" (click)="setTab(t.v)">{{ t.l }}</button> }
     </div>
-    <div class="d-grid gap-2">
+    <div class="d-grid gap-3">
       @for (o of items(); track o._id) {
-        <a class="card card-body text-decoration-none text-body py-3" [routerLink]="['/orders', o._id]">
-          <div class="d-flex justify-content-between align-items-start gap-2">
+        <a class="card text-decoration-none text-body border-0 rounded-4 shadow-sm overflow-hidden p-3 transition-card" [routerLink]="['/orders', o._id]">
+          <div class="d-flex justify-content-between align-items-start gap-2 border-bottom pb-2 mb-2">
             <div class="min-w-0">
-              <div class="fw-semibold">{{ o.sellerId?.shopName }}</div>
-              <small class="text-muted">{{ o.orderId }} · {{ o.createdAt | date: 'd MMM y, h:mm a' }}</small>
+              <div class="d-flex align-items-center gap-2">
+                <span class="fw-bold text-dark fs-6">{{ o.sellerId?.shopName }}</span>
+                @if (o.source === 'POS') { <span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill small"><i class="bi bi-receipt me-1"></i>In-store POS</span> }
+              </div>
+              <small class="text-muted d-block mt-0">Order #{{ o.orderId }} · {{ o.createdAt | date: 'd MMM y, h:mm a' }}</small>
             </div>
             <app-status-badge [status]="o.orderStatus" />
           </div>
-          <div class="d-flex align-items-center gap-2 mt-2">
-            @for (it of o.items.slice(0, 4); track $index) {
-              @if (it.image) { <img [src]="it.image" class="thumb thumb-sm" alt="" /> } @else { <span class="thumb thumb-sm"><i class="bi bi-box"></i></span> }
-            }
-            @if (o.items.length > 4) { <span class="small text-muted">+{{ o.items.length - 4 }}</span> }
-            <span class="ms-auto text-end"><strong>{{ o.finalAmount | inr }}</strong><small class="d-block text-muted">{{ o.paymentMethod === 'Cash' ? 'Cash' : 'Online' }}@if (o.paymentMethod === 'Online' && o.paymentStatus === 'Pending' && o.orderStatus === 'Pending') { · <span class="text-danger">Payment pending</span> }</small></span>
+          <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-2 overflow-hidden flex-nowrap">
+              @for (it of o.items.slice(0, 4); track $index) {
+                @if (it.image) {
+                  <img [src]="it.image" class="thumb thumb-sm rounded-3 shadow-xs border" alt="" />
+                } @else {
+                  <span class="thumb thumb-sm rounded-3 bg-light d-flex align-items-center justify-content-center text-muted border"><i class="bi bi-box"></i></span>
+                }
+              }
+            </div>
+            @if (o.items.length > 4) { <span class="small text-muted fw-semibold flex-shrink-0">+{{ o.items.length - 4 }} more</span> }
+            <div class="ms-auto text-end flex-shrink-0">
+              <strong class="fs-6 text-dark d-block">{{ o.finalAmount | inr }}</strong>
+              <small class="text-muted d-block">
+                {{ o.paymentMethod === 'Cash' ? 'Cash' : 'Online' }}
+                @if (o.paymentMethod === 'Online' && o.paymentStatus === 'Pending' && o.orderStatus === 'Pending') {
+                  · <span class="badge bg-warning-subtle text-warning-emphasis">Payment pending</span>
+                }
+              </small>
+            </div>
+            <i class="bi bi-chevron-right text-muted ms-1"></i>
           </div>
-          @if (o.source === 'POS') { <small class="text-muted mt-1"><i class="bi bi-receipt"></i> Bought at the store</small> }
         </a>
       }
     </div>
-    <app-state [loading]="loading()" [error]="error()" [empty]="!loading() && !error() && !items().length" icon="bi-bag" emptyText="No orders here yet" />
-    @if (!loading() && page < pages()) { <div class="text-center my-3"><button class="btn btn-outline-primary" (click)="more()">Load more</button></div> }
+    <app-state [loading]="loading()" [error]="error()" [empty]="!loading() && !error() && !items().length" icon="bi-bag-x" emptyText="No orders found in this category" />
+    @if (!loading() && page < pages()) {
+      <div class="text-center my-4">
+        <button class="btn btn-outline-primary rounded-pill px-4 shadow-xs" (click)="more()">
+          <i class="bi bi-arrow-down-circle me-1"></i>Load More Orders
+        </button>
+      </div>
+    }
   `,
 })
 export class OrdersComponent implements OnInit {
